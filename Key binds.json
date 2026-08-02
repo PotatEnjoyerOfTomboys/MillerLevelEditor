@@ -1,0 +1,25 @@
+{
+      "Keyboard": {
+            "Up": 119,
+            "Right": 100,
+            "Left": 97,
+            "Down": 115,
+            "Dash": 32,
+            "Reload": 114,
+            "Skill 1": 49,
+            "Skill 2": 50,
+            "Interact": 101,
+            "Order Hold": 122,
+            "Order Follow": 120,
+            "Order Attack": 99,
+            "Order Act Free": 118
+      },
+      "Mouse": {
+            "Shoot": 0,
+            "Alt fire": 2
+      },
+      "System": {
+            "Pause": 27,
+            "Screenshot": 51
+      }
+}

@@ -1,0 +1,45 @@
+{
+      "Move": "Stick Left",
+      "Dash": [
+            "Stick Left Press"
+      ],
+      "Aim": "Stick Right",
+      "Alt fire": [
+            "Trigger Left"
+      ],
+      "Shoot": [
+            "Trigger Right"
+      ],
+      "Interact": [
+            "Button Right"
+      ],
+      "Reload": [
+            "Button Bottom"
+      ],
+      "Skill 1": [
+            "Shoulder Left"
+      ],
+      "Skill 2": [
+            "Shoulder Right"
+      ],
+      "Order Hold": [
+            "D-pad Up"
+      ],
+      "Order Follow": [
+            "D-pad Left"
+      ],
+      "Order Attack": [
+            "D-pad Right"
+      ],
+      "Order Act Free": [
+            "D-pad Down"
+      ],
+      "Up": [],
+      "Down": [],
+      "Left": [],
+      "Right": [],
+      "Pause": [
+            "Button Select"
+      ],
+      "Screenshot": []
+}

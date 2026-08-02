@@ -1,0 +1,78 @@
+{
+	"Annals": {
+		"21st Century Timeline": ["2021 - 2040", "2041 - 2060", "2061 - 2080", "2081 - 2099"],
+		"2100": ["Solar War | January - April", "Solar War | May - August", "Solar War | September - December"],
+		"2101": ["Solar War | January - April", "Solar War | May - August", "Solar War | September - December"],
+		"2102": ["End of the Solar War", "Human FTLT system integration"],
+		"2103": ["Humans Move to Zoar"],
+		"2105": ["Pirate attack on Zoar"]
+	},
+	"Enemies": {
+		"Asset Protecting & Collection Dept.": [
+			"Body guard",
+			"Heavy Sniper",
+			"Radar Operator",
+			"Missile Operator",
+			"Marksman",
+			"Enforcer",
+			"Manager",
+			"Armed Shield Generator",
+			"AA Site"
+		],
+		"Burning Winds Band": [
+			"Skirmisher",
+			"BoomStick",
+			"Smoker",
+			"Snare",
+			"Crusher",
+			"Assassin",
+			"Sculptor",
+			"Hover Tank",
+			"Gilgamesh"
+		],
+		"C8 Mercenary Army": [
+			"Infantry",
+			"Flamer",
+			"Spotter",
+			"Artilleryman",
+			"Grenadier",
+			"Bulwark",
+			"Commanding Officer",
+			"Fire Support Mech",
+			"Attack Helicopter"
+		],
+		"Misc.": [
+			"Rigel",
+			"Curtis",
+			"THR-1 (Throne)"
+		]
+	},
+	"Organizations": {
+		"Armed groups": ["Asset Protecting & Collection Dept.", "Burning Winds Band", "C8 Mercenary Army", "NEST"],
+		"Mercenary Teams": {
+			"THR-1": ["Overview", "Leopold LORD Storch", "Kai EMPEROR", "Jeanne WIZARD McNeil", "Corrine SOVEREIGN", "Zander DUKE", "M3-D1C JESTER", "Vincent CONDOR Vidmar"], 
+			"Zoar Colony's Gun Shop": ["Overview", "Curtis Miller", "Vivianne Miller", "Lawrence Reed", "Mark"]
+			},
+		"Weapon Manufacturer": ["Old West Firearms & Replicas",
+								"Socrates",
+								"Factory Munition Ballistics",
+								"Novak & Boyko",
+								"Toolkit Manufacturing",
+								"CFCR",
+								"ASUM",
+								"Old English Armoury",
+								"Zoar Colony's Gun Shop",
+								"Dickinson Technologies", "Manhunter Ammunitions"]
+	},
+	"Weapon": {
+		"Handgun": ["Big Iron", "War and Peace"],
+		"Rifle": ["St-Maurice Youth Model", "St-Maurice", "St-Laurent Gen 1", "Type 47 Rifle", "Cowboy's Repeater", "Mark's Rifle", "Type 30 Rifle", "Vivianne's Rifle", "Combat Rifle"],
+		"Sub Machine Gun": ["Type 41 SMG"],
+		"Shotgun": ["Jeanne's Family Shotgun", "Type 23 Shotgun", "Standard Shotgun", "Vivianne's Shotgun", "Desert Shotgun"],
+		"Energy": ["Custom Mk18 Laser cutter", "Laser Carbine", "Laser Rifle", "Heavy Laser", "Marker Laser", "Plasma Spray", "Plasma Rifle", "Laser Shotgun"],
+		"Melee": ["Oversized stun baton", "Corrine's Hands", "Chain Axe", "Hook Swords", "Hunk of Steel", "Vivianne's Leg", "Gun Hammer", "Pile Bunker"],
+		"Combo": ["GunBlade", "Gun and Ballistic Knife", "Lawrence's Cutlass & Flintlock", "Captain's Axe & Blunderbuss"],
+		"Heavy": ["Saloum Mk-2", "GMG-04B", "Fortress Machine Gun", "Musket .360", "Buggy Gun", "Missile Pod", "ARWS", "Flamethrower", "Napalm Grenade Launcher", "Bulwark Minigun"],
+		"Gear": ["Crippled Laddie FCS Radio", "Mk16 Flare Mortar", "Epicurean Medic Rifle", "Nihilist Stretcher", "Stoic Shield generator", "C4", "Radar", "Smoke Dispenser", "Binoculars", "Artillery Radio"]
+	}
+}
