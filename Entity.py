@@ -10,6 +10,7 @@ import Bullets
 import Skills
 import Particles
 import Weapons
+import MechRenderer
 import Items
 import Event
 
@@ -7543,6 +7544,32 @@ enemy_repertory = {
          "sprites": "Sprites/Enemies/Bulwark.png", "on death": "none",
          "free var": {"IS BOSS": True}
          },
+    "Fire Support Mech":
+        {"name": "Fire Support Mech",
+         "faction": "FAC-3",
+         "type": "Elite",
+         "targeting range": R_MO, "targeting angle": D_HO, "stealth mod": S_LO, "stealth counter": C_MO,
+         "wall hack": False, "health": H_HO * 22, "armour": 0, "damage resistances": F3_RESIT_H,
+         "thickness": 48,
+         "vel max": V_LO * 0.8, "speed": V_LO * 0.8, "friction": V_LO * 0.8,
+         "weapon": "Bloodhound Weaponry",
+
+         "func input": "bloodhound_input",
+         "func act": "bloodhound_act",
+         "func draw": "bloodhound_draw",
+         # "func draw": "enemy_draw_basic",
+         "sprites": "Sprites/Enemies/Bulwark.png", "on death": "bloodhound_on_death",
+         "free var": {
+             "IS BOSS": True,
+             "Mech": MechRenderer.Mech(MechRenderer.bloodhound_mech, MechRenderer.bloodhound_palette, [0, -350]),
+             "Move angle": -90,
+             "Turn speed": 2,
+             "Startup lag": 0,
+             "Startup lag boost": 0,
+             "Current attack": "Canon",
+             "Boost type": []
+         }
+         },
     # Attack Helicopter
     "Attack Helicopter": {
         "name": "Attack Helicopter", "faction": "FAC-3",
@@ -7567,6 +7594,47 @@ enemy_repertory = {
 
     # |Others|----------------------------------------------------------------------------------------------------------
     # Rigel
+    "Rigel":
+        {"name": "Rigel",
+         "faction": "FAC-3",
+         "type": "Elite",
+         "targeting range": R_MO, "targeting angle": D_HO, "stealth mod": S_LO, "stealth counter": C_MO,
+         "wall hack": False, "health": H_HO * 12, "armour": 0, "damage resistances": F3_RESIT_H,
+         # "wall hack": False, "health": 1, "armour": 0, "damage resistances": F3_RESIT_H,
+         "thickness": 48,
+         "vel max": V_LO * 0.8, "speed": V_LO * 0.8, "friction": V_LO * 0.8,
+         "weapon": "Bloodhound Weaponry",
+
+         "func input": "rigel_input",
+         "func act": "rigel_act",
+         "func draw": "rigel_draw",
+         "sprites": "Sprites/Enemies/Bulwark.png", "on death": "rigel_on_death",
+         "free var": {
+             "IS BOSS": True,
+             "Mech": MechRenderer.Mech(MechRenderer.rigel_mech, MechRenderer.rigel_palette, [0, -350]),
+             "Move angle": -90,
+             "Turn speed": 2,
+             "Startup lag": 0,
+             "Startup lag boost": 0,
+             "Current attack": "Shoulder Bash",
+             "Phase": 1,
+             "Boost type": [],
+             "Pos history": {
+                 "1": {"Target": None, "History": []},
+                 "2": {"Target": None, "History": []},
+                 "3": {"Target": None, "History": []},
+             },
+             "Segments": {
+                 "1": {"Pos": [0, 0], "Angle": 0},
+                 "2": {"Pos": [0, 0], "Angle": 0},
+                 "3": {"Pos": [0, 0], "Angle": 0},
+             },
+             "Missile Circus": 0,
+             "Anti Missile Circus Spam": False,
+             "Invert Raining Hell": False,
+             "History limit": 15
+         }
+         },
     # Curtis
     "Curtis": {
         "name": "Curtis", "faction": "Zoar Colonists",
@@ -7771,6 +7839,12 @@ RIGEL_SEGMENT = Fun.get_image('Sprites/Segment.png')
 RIGEL_SEGMENT_WIDTH = RIGEL_SEGMENT.get_width()
 RIGEL_SEGMENT_HEIGHT = RIGEL_SEGMENT.get_height()
 RIGEL_SEGMENT_ORIGIN = [RIGEL_SEGMENT_WIDTH * 0.5, RIGEL_SEGMENT_HEIGHT * 0]
+
+
+unified_entity_repertory = {}
+for x in [player_repertory, enemy_repertory]:
+    for y in x:
+        unified_entity_repertory.update({y: x[y]})
 
 
 def fake_render(boss, WIN, CLOCK):

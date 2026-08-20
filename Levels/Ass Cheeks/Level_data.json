@@ -1,0 +1,61 @@
+{
+      "events": {
+            "Super Aids": [
+                  "Super Aids",
+                  {
+                        "rects": [
+                              [
+                                    22,
+                                    23,
+                                    8,
+                                    4
+                              ]
+                        ],
+                        "Conditions": "trigger_check_rect"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": [
+                              {
+                                    "Name": "In your butt",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          15,
+                                          33,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": "100",
+                                    "ID": "Infantry"
+                              },
+                              {
+                                    "Name": "Chopped Dick",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          26,
+                                          34,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 90.0,
+                                    "ID": "Skirmisher"
+                              },
+                              {
+                                    "Name": "Buttocks",
+                                    "Type": "door",
+                                    "Door ID": 1,
+                                    "Door state": true
+                              }
+                        ],
+                        "": ""
+                  }
+            ]
+      },
+      "free var": {},
+      "name": "Ass Cheeks"
+}

@@ -165,16 +165,15 @@ def trigger_check_constant(self, entities, bullets, level, time_passed):
 
 def trigger_check_rect(self, entities, bullets, level, time_passed):
     for rect in self.trigger_rects:
-        if rect.colliderect(entities["players"][0].collision_box):
+        if rect.colliderect(entities["entities"][0].collision_box):
             return True
 
 
 def trigger_check_rect_everyone(self, entities, bullets, level, time_passed):
     for rect in self.trigger_rects:
-        for t in ["players", "enemies"]:
-            for e in entities[t]:
-                if rect.colliderect(e.collision_box):
-                    return True
+        for e in entities["entities"]:
+            if rect.colliderect(e.collision_box):
+                return True
 
 
 def trigger_check_mission_start(self, entities, bullets, level, time_passed):
@@ -272,19 +271,16 @@ def trigger_check_for_time(self, entities, bullets, level, time_passed):
     return False
 
 
-def trigger_check_m6e_end(self, entities, bullets, level, time_passed):
+# def trigger_check_m6e_end(self, entities, bullets, level, time_passed): old name for the function
+def trigger_check_encounter_waves(self, entities, bullets, level, time_passed):
     # I love this function
     # "Specified amount" "E. num stage" "E. num ref"
     if level["free var"][self.free_var["E. num ref"]] == self.free_var["E. num stage"]:
-        return trigger_check_under_specified_amount_enemies(self, entities, bullets, level, time_passed)
 
-
-def trigger_check_apc_reached_goal(self, entities, bullets, level, time_passed):
-    for e in entities["entities"]:
-        if "IS AN APC" in e.free_var:
-            # Check if on the target point
-            return not level['free var']['APC path']
-    return False
+        value = trigger_check_under_specified_amount_enemies(self, entities, bullets, level, time_passed)
+        if value:
+            level["free var"][self.free_var["E. num ref"]] += 1
+        return value
 
 
 # |Triggers|------------------------------------------------------------------------------------------------------------
@@ -297,7 +293,95 @@ trigger_no_enemies = {"rects": [], "Conditions": trigger_check_zero_enemies}
 trigger_yes_boss = {"rects": [], "Conditions": trigger_check_boss_alive}
 trigger_constant = {"rects": [], "Conditions": trigger_check_constant}
 trigger_e_finished = {"rects": [], "Conditions": trigger_check_finished_encounter}
-trigger_ep_finished = {"rects": [], "Conditions": trigger_check_m6e_end}  # Handles encounters with multiple waves
+# trigger_ep_finished = {"rects": [], "Conditions": trigger_check_m6e_end}  # Handles encounters with multiple waves
+
+
+def generic_event(self, entities, bullets, level, time_passed, screen, CLOCK):
+    # Do shit with generic events
+    for a in self.free_var["Default Event Actions"]:
+        #   track control
+        #       change
+        #       pause
+        #       stop
+        #   level end
+        #       win condition
+        #       loss condition
+        #   cutscene
+        #   radio transmission
+        #   free var manipulation
+        {
+            "spawn": generic_event_spawn,
+            "despawn": generic_event_despawn,
+            "door": generic_event_door,
+            "sound": generic_event_sound,
+            "level end": generic_event_level_end,
+            "cutscene": generic_event_cutscene,
+            "radio": generic_event_radio,
+            "free var": generic_event_free_var
+         }[a["Type"]](self, entities, bullets, level, time_passed, a)
+        #                             "level end": {"End level state": "win"},
+        #                             "cutscene": {},     # AAAAAAAAAAAAAAAAAAAA
+        #                             "radio": {},        # AAAAAAAAAAAAAAAAAAAA
+        #                             "free var": {"Target free var": "", "Operation": "Addition", "Value": 0}
+
+
+def generic_event_spawn(self, entities, bullets, level, time_passed, info):
+    #       entity  (a boss intro can be selected for bosses,
+    #                default team is "Enemy", can be set to "Players" to have allies)
+    #       item    (no angle needed, extra info might be asked based on the item)
+    #       bullets
+    #                             "spawn": {"Class": "Entity", "Pos": [0, 0, 1, 1], "Angle": 0, "ID": ""},
+    if info["Class"] == "Entity":
+        spawn_enemy(entities, info["ID"], info["Pos"], float(info["Angle"]))
+
+
+def generic_event_despawn(self, entities, bullets, level, time_passed, info):
+    #   despawn     (set a series of condition to chooses who to despawn
+    #                2 despawn method,
+    #                   soft: the thing takes max damage that can't be reduced
+    #                   hard: the entity is removed from the list
+    #                conditions can be: name, team, pos)
+    #                             "despawn": {"Method": "Soft", "Conditions": []},
+    pass
+
+
+def generic_event_door(self, entities, bullets, level, time_passed, info):
+    # door        (pick a door and set state either in open or closed)
+    #                             "door": {"Door ID": 0, "Door state": True},
+    # level["door state"].append({"State": map_data["door state"][count], "Rect": pg.Rect([s * 32 for s in d])})
+    door_id = info["Door ID"]
+    level["door state"][door_id]["State"] = info["Door state"]
+
+    # Set wall collisions
+    if level["door state"][door_id]["State"]:
+        level["map"][door_id] = level["door state"][door_id]["Rect"]
+    else:
+        level["map"][door_id] = pg.Rect([0, 0, 0, 0])
+
+
+def generic_event_sound(self, entities, bullets, level, time_passed, info):
+    #                             "sound": {"Action": "Play", "Audio": "Silence"},
+    pass
+
+
+def generic_event_level_end(self, entities, bullets, level, time_passed, info):
+    #                             "level end": {"End level state": "win"},
+    pass
+
+
+def generic_event_cutscene(self, entities, bullets, level, time_passed, info):
+    #                             "cutscene": {},     # AAAAAAAAAAAAAAAAAAAA
+    pass
+
+
+def generic_event_radio(self, entities, bullets, level, time_passed, info):
+    #                             "radio": {},        # AAAAAAAAAAAAAAAAAAAA
+    pass
+
+
+def generic_event_free_var(self, entities, bullets, level, time_passed, info):
+     #                             "free var": {"Target free var": "", "Operation": "Addition", "Value": 0}
+    pass
 
 
 # |Mission events|------------------------------------------------------------------------------------------------------
@@ -782,6 +866,82 @@ def versus_every_frame(self, entities, bullets, level, time_passed, screen, CLOC
         ])
         level["events"].append(MissionEvent("Finishing", trigger_timer, False, [finish_mission], free_var={"Timer": 60 * 5}))
 
+
+#
+def convert_pos(dict_to_convert, list_mode=False):
+    for count, e in enumerate(dict_to_convert):
+        index = e
+        if list_mode:
+            index = count
+        if type(dict_to_convert[index]) == dict:
+            dict_to_convert[index] = convert_pos(dict_to_convert[index])
+        elif e == "Pos":
+            dict_to_convert[index] = [dict_to_convert[index][0] * 32 + 16, dict_to_convert[index][1] * 32 + 16]
+        elif type(dict_to_convert[index]) == list:
+            dict_to_convert[index] = convert_pos(dict_to_convert[index], list_mode=True)
+
+    return dict_to_convert
+
+
+def load_level(level_to_load):
+    map_data = Fun.get_from_json(f"Levels/{level_to_load}/Map_data.json", "Everything")
+    event_data = Fun.get_from_json(f"Levels/{level_to_load}/Level_data.json", "Everything")
+
+    level = {
+        'name': event_data["name"],
+        'map': [],
+        'door state': [],
+        'events': [],
+        'level_finished': False,
+        'pathfinding': None,
+        "width height": [map_data["size"][0] * 32, map_data["size"][1] * 32],
+        'rendering': {
+            "Segments": [],
+            "Tile set": {"Wall": Fun.TILE_SET_IRON_MINES_WALL, "Floor": Fun.TILE_SET_IRON_MINES_FLOOR}
+        },
+        "spawn point": [
+            map_data["spawn point"][0][0] * 32 + 16, map_data["spawn point"][0][1] * 32 + 16
+        ],
+        'free var': event_data["free var"],
+    }
+    # Convert level geometry
+    for count, d in enumerate(map_data["doors"]):
+        level["door state"].append({"State": map_data["door state"][count], "Rect": pg.Rect([s * 32 for s in d])})
+        if map_data["door state"][count]:
+            level["map"].append(pg.Rect([s * 32 for s in d]))
+        else:
+            level["map"].append(pg.Rect([0, 0, 0, 0]))
+
+    for w in map_data["map"]:
+        level["map"].append(pg.Rect([s * 32 for s in w]))
+
+    # Convert events
+    for e in event_data["events"]:
+
+        event_info = event_data["events"]
+
+        trigger = {'rects': [], 'Conditions': event_info[e][1]["Conditions"]}
+
+        for r in event_info[e][1]["rects"]:
+            trigger["rects"].append([ass * 32 for ass in r])
+
+        free_var = convert_pos(event_info[e][4])
+
+        event = [event_info[e][0], trigger, event_info[e][2],
+                 ["generic_event"], # Will need to update that for custom functions
+                 free_var]
+
+        # "Super Aids": [
+        #                   true, ["generic_event"],
+        #                   {"Default Event Actions": [
+        #                       {"Name": "In your butt", "Type": "spawn", "Class": "Entity",
+        #                        "Pos": [15, 33, 1, 1], "Angle": "100", "ID": "Infantry"}],
+        #                    "": ""
+        #                   }
+        level["events"].append(event)
+
+
+    return level
 
 import Entity
 from Entity import ENEMY_NO_OWNER

@@ -614,6 +614,109 @@ def versus_mode(party_info):
             Fun.versus_end_menu(WIN, CLOCK, party_info, end_status)
 
 
+
+def custom_level():
+    big_game_loop = True
+
+    while big_game_loop:
+        Fun.loading_screen(WIN, CLOCK)
+        load_level = True
+        # Choose level here
+
+        if load_level:
+            # Get event from JSON
+            level = Event.load_level("Ass Cheeks")
+
+            # Set up the rests
+            entities = {"entities": [], "items": [], "sounds": [], "bullets": [],
+                        "background particles": [], "particles": [], "UI particles": [], "screen shake": [],
+                        "cutscene stage": 0, "shadows": [], "scrolling": [], "scrolling target": []}
+
+            scrolling_target_entities = []  # Use that
+            # Load up the party
+            player_count = 0
+            out_party = [["Lord", "Keyboard & Mouse"]]
+            for count, player_to_add in enumerate(out_party):
+                name = player_to_add[0]
+                input_method = player_to_add[1]
+                info = Entity.player_repertory[name]
+
+                # Add default outline
+                info["free var"].update({"Outline": Fun.OUTLINE_TEAL})
+
+                # Manage input functions, default is AI
+                if input_method == "Keyboard & Mouse":
+                    info["func input"] = Entity.player_input_keyboard
+                    info["free var"].update({"Outline": Fun.PLAYER_OUTLINE_COLOUR[player_count]})
+
+                    player_count += 1
+                elif input_method in ["Controller 1", "Controller 2", "Controller 3", "Controller 4"]:
+                    info["func input"] = {
+                        "Controller 1": Entity.player_input_controller_1,
+                        "Controller 2": Entity.player_input_controller_2,
+                        "Controller 3": Entity.player_input_controller_3,
+                        "Controller 4": Entity.player_input_controller_4
+                    }[input_method]
+                    info["Input mode"] = "Controller"
+                    info["free var"].update({"Outline": Fun.PLAYER_OUTLINE_COLOUR[player_count]})
+                    player_count += 1
+
+                # Add players in
+                entities["entities"].append(Entity.Entity(info))
+                last_added_entity = entities["entities"][-1]
+                if input_method != "COM":
+                    scrolling_target_entities.append(last_added_entity)
+                    last_added_entity.is_player = True
+
+                # Handle spawn points
+                if count > 0:
+                    mc = entities["entities"][0]
+                    last_added_entity.pos = Fun.random_point_in_circle(mc.pos, 16)
+                    last_added_entity.free_var["Ally waypoint"] = mc
+                else:
+                    last_added_entity.pos = level["spawn point"].copy()
+
+
+                # Reset the name to the correct one
+                last_added_entity.name = name
+
+            # Load events
+            new_events = []
+            for events_to_load in level["events"]:
+                event_name = events_to_load[0]
+                event_trigger = Event.get_event_trigger(events_to_load[1])
+                # event_functions = Event.get_event_function(events_to_load[3])
+                event_functions = []
+                for funcs in events_to_load[3]:
+                    event_functions.append(getattr(Event, funcs))
+                    # "Name", Event.relevant trigger, single use, Event.effects
+                free_var = {}
+                if len(events_to_load) == 5:
+                    free_var = events_to_load[4]
+
+                new_events.append(
+                    Event.MissionEvent(event_name, event_trigger, events_to_load[2], event_functions,
+                                       free_var=free_var))
+            level["events"] = new_events
+
+            # Scrolling
+            scrolling_target = Fun.find_scrolling_target(scrolling_target_entities)
+            scrolling = scrolling_target
+            entities["scrolling"] = scrolling
+            # end_status = "Loss"
+            # |Main game loop|------------------------------------------------------------------------------------------
+            frame_2 = WIN.copy()
+            Render.draw(WIN, CLOCK, 0, scrolling, scrolling_target, level, entities, 1)
+            Fun.menu_transition_doom_screen_melt(WIN, CLOCK, WIN.copy(), frame_2)
+
+            end_status, mission_end_screen, big_game_loop, time_spent = Main_Loop.main_loop_no_party(WIN, CLOCK, entities, level,
+                                                                                            scrolling,
+                                                                                            scrolling_target_entities)
+
+            pg.mixer.music.fadeout(60)
+            # |Mission end screen|----------------------------------------------------------------------------------
+
+
 if __name__ == "__main__":
     # |Load controls and save|------------------------------------------------------------------------------------------
     try:
@@ -646,48 +749,51 @@ if __name__ == "__main__":
 
     while True:
         player_party = Fun.main_menu(WIN, CLOCK)
-        create_char_party_info = lambda char_name: {
-            "Name": char_name,
-            "Health": Entity.player_repertory[char_name]["health"],
-            "Death message": "",
-            "Info": Entity.player_repertory[char_name].copy(),
-        }
-
-        party_info = {
-            "THR-1": {
-                "Lord": create_char_party_info("Lord"),
-                "Emperor": create_char_party_info("Emperor"),
-                "Wizard": create_char_party_info("Wizard"),
-                "Sovereign": create_char_party_info("Sovereign"),
-                "Duke":create_char_party_info("Duke"),
-                "Jester": create_char_party_info("Jester"),
-                "Condor": create_char_party_info("Condor"),
-            },
-            "Zoar Colonists": {
-                "Curtis": create_char_party_info("Curtis"),
-                "Lawrence": create_char_party_info("Lawrence"),
-                "Vivianne": create_char_party_info("Vivianne"),
-                "Mark": create_char_party_info("Mark"),
-            },
-            "Versus": {
-                "Lord": create_char_party_info("Lord"),
-                "Emperor": create_char_party_info("Emperor"),
-                "Wizard": create_char_party_info("Wizard"),
-                "Sovereign": create_char_party_info("Sovereign"),
-                "Duke":create_char_party_info("Duke"),
-                "Jester": create_char_party_info("Jester"),
-                "Condor": create_char_party_info("Condor"),
-
-                "Curtis": create_char_party_info("Curtis"),
-                "Lawrence": create_char_party_info("Lawrence"),
-                "Vivianne": create_char_party_info("Vivianne"),
-                "Mark": create_char_party_info("Mark"),
-            }
-        }[player_party].copy()
-
-        if player_party == "Versus":
-            versus_mode(party_info)
+        if player_party == "Custom Levels":
+            custom_level()
         else:
-            main_game(party_info)
+            create_char_party_info = lambda char_name: {
+                "Name": char_name,
+                "Health": Entity.player_repertory[char_name]["health"],
+                "Death message": "",
+                "Info": Entity.player_repertory[char_name].copy(),
+            }
+
+            party_info = {
+                "THR-1": {
+                    "Lord": create_char_party_info("Lord"),
+                    "Emperor": create_char_party_info("Emperor"),
+                    "Wizard": create_char_party_info("Wizard"),
+                    "Sovereign": create_char_party_info("Sovereign"),
+                    "Duke": create_char_party_info("Duke"),
+                    "Jester": create_char_party_info("Jester"),
+                    "Condor": create_char_party_info("Condor"),
+                },
+                "Zoar Colonists": {
+                    "Curtis": create_char_party_info("Curtis"),
+                    "Lawrence": create_char_party_info("Lawrence"),
+                    "Vivianne": create_char_party_info("Vivianne"),
+                    "Mark": create_char_party_info("Mark"),
+                },
+                "Versus": {
+                    "Lord": create_char_party_info("Lord"),
+                    "Emperor": create_char_party_info("Emperor"),
+                    "Wizard": create_char_party_info("Wizard"),
+                    "Sovereign": create_char_party_info("Sovereign"),
+                    "Duke":create_char_party_info("Duke"),
+                    "Jester": create_char_party_info("Jester"),
+                    "Condor": create_char_party_info("Condor"),
+
+                    "Curtis": create_char_party_info("Curtis"),
+                    "Lawrence": create_char_party_info("Lawrence"),
+                    "Vivianne": create_char_party_info("Vivianne"),
+                    "Mark": create_char_party_info("Mark"),
+                }
+            }[player_party].copy()
+
+            if player_party == "Versus":
+                versus_mode(party_info)
+            else:
+                main_game(party_info)
         #
     #

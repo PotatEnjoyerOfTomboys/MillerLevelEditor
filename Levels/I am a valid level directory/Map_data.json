@@ -1,0 +1,21 @@
+{
+      "map": [],
+      "doors": [],
+      "rendering": {
+            "Segments": [],
+            "Tile set": {}
+      },
+      "pathfinding": null,
+      "spawn point": [
+            [
+                  5,
+                  5,
+                  1,
+                  1
+            ]
+      ],
+      "size": [
+            640,
+            448
+      ]
+}

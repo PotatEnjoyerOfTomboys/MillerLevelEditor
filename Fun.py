@@ -74,6 +74,7 @@ def test2():
     for x in range(100000):
         pg.math.clamp(1, 2, 4)
 
+
 # |Saving stuff|--------------------------------------------------------------------------------------------------------
 def dict_to_json(filename, dictionary):
     # This function make stuff go in a json file
@@ -182,18 +183,31 @@ try:
 except FileNotFoundError:
     print_to_error_stream("File Setting.json missing, creating a new one")
     dict_to_json("Settings.json", {"SFX": 5.0, "Music": 5.0, "Voice": 5.0, "Screen shake": 1.0, "Language": 0})
-
 try:
     get_from_json("Key binds.json", "Everything")
 except FileNotFoundError:
     print_to_error_stream("Key binds.json not found, creating new one")
     dict_to_json("Key binds.json", DEFAULT_KEY_BINDS)
-
 try:
     get_from_json("Controller binds.json", "Everything")
 except FileNotFoundError:
     print_to_error_stream("Controller binds.json not found, creating new one")
     dict_to_json("Controller binds.json", DEFAULT_CONTROLLER_BINDS)
+try:
+    save_data = get_from_json("Save.json", "Everything")
+    # Convert data file if needed
+    for field_to_check in EMPTY_SAVE_FILE:
+        if field_to_check not in save_data:
+            print_to_error_stream(f"Whoops, someone doesn't have '{field_to_check}' in his save file")
+            save_data.update({field_to_check: EMPTY_SAVE_FILE[field_to_check]})
+            save_data.update({"Version": VERSION})
+            dict_to_json("Save.json", save_data)
+            print_to_error_stream("Fixed!")
+except FileNotFoundError:
+    print_to_error_stream("Save.json not found, creating new one")
+    dict_to_json("Save.json", EMPTY_SAVE_FILE)
+
+save_data = get_from_json("Save.json", "Everything")
 
 zoom_amount = 0.9
 SCREEN_SHAKE_MOD = [round(get_from_json("Settings.json", "Screen shake"))]
@@ -1038,16 +1052,90 @@ class PseudoPlayer:
         if self.input != input_copy:
             self.input_mode = "Controller"
 
+class PseudoPlayerMouseInput:
+    def __init__(self):
+        # This class can be used have control over the various menus when you can get them from the player class
+        self.control = get_from_json("Key binds.json", "Keyboard")
+
+        try:
+            self.controller_control = get_from_json("Controller binds.json", "Everything")
+        except FileNotFoundError:
+            print_to_error_stream("Controller binds.json not found, creating new one")
+            dict_to_json("Controller binds.json", DEFAULT_CONTROLLER_BINDS)
+            self.controller_control = DEFAULT_CONTROLLER_BINDS
+            if len(ALL_CONTROLLERS[0]) > 0:
+                print_to_error_stream("Notice - Default controller binds are loaded")
+
+        self.input = get_default_inputs()
+        self.mouse_control = get_from_json("Key binds.json", "Mouse")
+        self.input_mode = "Keyboard"
+
+    def get_input(self, keys, mouse):
+        keyboard_mouse_input(self, keys, mouse)
+        input_copy = self.input.copy()
+
+        keyboard = False
+        for keyboard_input in input_copy:
+            if input_copy[keyboard_input]:
+                keyboard = True
+                break
+
+        controller_input(self, True)
+
+        if keyboard:
+            self.input_mode = "Keyboard"
+        if self.input != input_copy:
+            self.input_mode = "Controller"
+
+
+def get_scaled_mouse_pos():
+    width, height = pg.display.get_surface().get_size()
+    slide_width, slide_height = FRAME_MAX_SIZE  # 1.4
+    if width != slide_width or height != slide_height:
+        if width > height * 1.4:
+            slide_width = slide_width * height / slide_height
+            slide_height = height
+        elif width < height:
+            slide_height = slide_height * width / slide_width
+            slide_width = width
+        if width < height * 1.4:
+            slide_width = slide_width * height / slide_height
+            slide_height = height
+        elif width > height:
+            slide_height = slide_height * width / slide_width
+            slide_width = width
+    if slide_width > width or slide_height > height:
+        if width > height * 1.4:
+            slide_width = slide_width * height / slide_height
+            slide_height = height
+        elif width < height * 1.4:
+            slide_height = slide_height * width / slide_width
+            slide_width = width
+    mouse_pos = pg.mouse.get_pos()
+    render_rect = (width // 2 - slide_width // 2, height // 2 - slide_height // 2, slide_width, slide_height)
+    return [
+        (mouse_pos[0] - render_rect[0]) * (FRAME_MAX_SIZE[0] / slide_width)*1.1125,
+        (mouse_pos[1] - render_rect[1]) * (FRAME_MAX_SIZE[1] / slide_height)*1.1125]
+
 
 class UniversalMenuLogic:
-    def __init__(self, options, width=1, key_binds={"Select Up": "Up", "Select Down": "Down",
-                                           "Select Left": "Left", "Select Right": "Right",
-                                           "Confirm": "Interact", "Return": "Reload"}, default_return=-1):
+    def __init__(self, options, width=1,
+                 key_binds={"Select Up": "Up", "Select Down": "Down",
+                            "Select Left": "Left", "Select Right": "Right",
+                            "Confirm": "Interact", "Return": "Reload"},
+                 mouse_binds={"Confirm": "Shoot"},
+                 use_mouse_inputs=False,
+                 default_return=-1, draw_value=False):
         self.key_pressed = DEFAULT_KEY_PRESSED
         self.key_cooldown = DEFAULT_KEY_COOLDOWN
         self.controller = PseudoPlayer()
+        self.use_mouse_inputs = use_mouse_inputs
+        if use_mouse_inputs:
+            self.controller = PseudoPlayerMouseInput()
         self.key_binds = key_binds
+        self.mouse_binds = mouse_binds
         self.keys = []
+        self.mouse_keys = []
 
         self.options = options # The complex part
         # [
@@ -1071,15 +1159,26 @@ class UniversalMenuLogic:
         self.colour_controls = UI_COLOUR_TUTORIAL
         self.colour_low_vis = UI_COLOUR_NEW_BACKGROUND
         self.default_return = default_return
+        self.draw_pos = [0, 0]
+
+        self.allow_click_confirm = False
+        self.draw_value = draw_value    # Use that later
 
     def cooldown(self):
         self.key_pressed = self.key_cooldown
         play_sound("Menu move", "SFX")
         self.controller = PseudoPlayer()
+        if self.use_mouse_inputs:
+            self.controller = PseudoPlayerMouseInput()
         ppp = get_from_json("Key binds.json", "System")
         self.max_option = len(self.options) - 1 # Remove this line and the game will crash in the shop menu
         for i in ppp:
             SYSTEM_CONTROLS[i] = ppp[i]
+
+    @staticmethod
+    def get_mouse_pos():
+        return get_scaled_mouse_pos()
+        # return pg.mouse.get_pos()
 
     # |Menu Methods|----------------------------------------------------------------------------------------------------
     def menu_mode_normal(self, WIN, CLOCK):
@@ -1105,6 +1204,24 @@ class UniversalMenuLogic:
         else:
             self.pressing = False
 
+        # Select option using the cursor
+        if self.use_mouse_inputs:
+            if pg.mouse.get_rel() != (0, 0):
+                mouse_pos = self.get_mouse_pos()
+                base_pos = self.draw_pos.copy()
+                y = base_pos[1] + 30
+                give_click_confirm = False
+                for count, op in enumerate(self.options):
+                    if pg.Rect((base_pos[0] - 2, y - 2, 80 + 24 * self.width, 10 + 4)).collidepoint(mouse_pos):
+                        self.selected_option = count
+                        if not self.allow_click_confirm:
+                            play_sound("Menu move", "SFX")
+                        give_click_confirm = True
+                        break
+                    give_click_confirm = False
+                    y += 18
+                self.allow_click_confirm = give_click_confirm
+
         # Do something
         if self.controller.input[self.key_binds["Confirm"]]:
             selected_option_data = self.options[self.selected_option]
@@ -1112,6 +1229,10 @@ class UniversalMenuLogic:
             if selected_option_data["On select"] == "Return":
                 return selected_option_data["Value"]
             self.menu_mode = selected_option_data["On select"]
+            if selected_option_data["On select"] == "Switch":
+                selected_option_data["Value"] = not selected_option_data["Value"]
+                self.menu_mode = "Normal"
+
             self.key_pressed = self.key_cooldown
         if self.controller.input[self.key_binds["Return"]]:
             return self.options[self.default_return]["Value"]
@@ -1198,8 +1319,16 @@ class UniversalMenuLogic:
 
     def act(self, WIN, CLOCK):
         self.keys = pg.key.get_pressed()
+        self.mouse_keys = pg.mouse.get_pressed()
         needed_in_menu_and_game(WIN, self.keys)
-        self.controller.get_input(self.keys)
+
+        if self.use_mouse_inputs:
+            self.controller.get_input(self.keys, self.mouse_keys)
+
+            if self.allow_click_confirm:
+                self.controller.input[self.key_binds["Confirm"]] = self.controller.input[self.mouse_binds["Confirm"]]
+        else:
+            self.controller.get_input(self.keys)
 
         if self.key_pressed == 0:
             return {
@@ -1264,7 +1393,7 @@ class UniversalMenuLogic:
         if self.menu_mode == "Choose" and op == option:
             colour = self.colour_high_vis
         bar_x = pos[0] + 110
-        surface.blit(font.render(op["Choose"]["List"][op["Value"]], True, colour), [bar_x, pos[1]])
+        surface.blit(font.render(f'{op["Choose"]["List"][op["Value"]]}', True, colour), [bar_x, pos[1]])
         if 0 < op["Value"]:
             surface.blit(font.render("<", True, colour), [bar_x-8, pos[1]])
         if len(op["Choose"]["List"])-1 > op["Value"]:
@@ -1297,6 +1426,7 @@ class UniversalMenuLogic:
         surface.blit(font.render(f'{["Left", "Middle", "Right"][op["Value"]]} Mouse', True, colour), [bar_x, pos[1]])
 
     def draw(self, surface, base_pos, draw_move=True):
+        self.draw_pos = base_pos
         font = create_temp_font_1(450)
         # Draw instructions
         if draw_move:
@@ -1325,6 +1455,8 @@ class UniversalMenuLogic:
                 "Key Input": self.draw_key_input
             }[op["Render func"]](surface, op, [base_pos[0], y], font)
             y += 18
+        # mouse_pos = self.get_mouse_pos()
+        # pg.draw.rect(surface, WHITE, (mouse_pos[0]-1, mouse_pos[1]-1, 2, 2))
 
 
 class UICommunicationLog:
@@ -1376,9 +1508,131 @@ class UICommunicationLog:
             surface_to_draw.blit(self.font.render(message, True, self.font_colour), (x2 * z, y1 - negative_height + count * text_h * z))
 
 
-def confirmation_popup(WIN, CLOCK, pos, options, text="", do_crt=True, popup_width=256):
+def text_input_menu(WIN, CLOCK, frame_1, pos, text="", nums_only=False):
+    draw = True
+    popup_width, popup_height = 400, 35
+    nums_only_char = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "."]
+
+    print_event = "showevent" in sys.argv
+    text = str(text)# to manage nums_only
+    _ime_editing = False
+    _ime_text = text
+    _ime_text_pos = len(text)
+    _ime_editing_text = text
+    _ime_editing_pos = len(text)
+
+
+    while True:
+        events = pg.event.get()
+
+        keys = pg.key.get_pressed()
+        needed_in_menu_and_game(WIN, keys)
+        for event in events:
+            if event.type == pg.KEYDOWN:
+                if print_event:
+                    print(event)
+
+                if _ime_editing:
+                    if len(_ime_editing_text) == 0:
+                        _ime_editing = False
+                    continue
+
+                if event.key == pg.K_BACKSPACE:
+                    if len(_ime_text) > 0 and _ime_text_pos > 0:
+                        _ime_text = (
+                                _ime_text[0: _ime_text_pos - 1]
+                                + _ime_text[_ime_text_pos:]
+                        )
+                        _ime_text_pos = max(0, _ime_text_pos - 1)
+
+                elif event.key == pg.K_DELETE:
+                    _ime_text = (
+                            _ime_text[0: _ime_text_pos]
+                            + _ime_text[_ime_text_pos + 1:]
+                    )
+                elif event.key == pg.K_LEFT:
+                    _ime_text_pos = max(0, _ime_text_pos - 1)
+                elif event.key == pg.K_RIGHT:
+                    _ime_text_pos = min(
+                        len(_ime_text), _ime_text_pos + 1
+                    )
+                # Handle ENTER key
+                elif event.key in [pg.K_RETURN, pg.K_KP_ENTER]:
+                    # Block if we have no text to append
+                    if len(_ime_text) == 0:
+                        continue
+
+                    if nums_only:
+                        if len(_ime_text) == 1:
+                            if "." in _ime_text:
+                                continue
+                            if "-" in _ime_text:
+                                continue
+                        if _ime_text == "-.":
+                            continue
+                    return _ime_text
+
+            # Wait to see if something breaks before removing this
+            # elif event.type == pg.TEXTEDITING:
+            #     if print_event:
+            #         print(event)
+            #     _ime_editing = True
+            #     _ime_editing_text = event.text
+            #     _ime_editing_pos = event.start
+            #     print(event.text)
+
+            elif event.type == pg.TEXTINPUT:
+                # Use this for int and float inputs
+                if nums_only:
+                    if event.text not in nums_only_char:
+                        # Allow the first character to be a minus sign for negative numbers
+                        if not (event.text == "-" and len(_ime_text) == 0):
+                            continue
+                    if event.text == "." and "." in _ime_text:
+                        continue
+
+                if print_event:
+                    print(event)
+                _ime_editing = False
+                _ime_editing_text = ""
+                _ime_text = (
+                        _ime_text[0: _ime_text_pos]
+                        + event.text
+                        + _ime_text[_ime_text_pos:]
+                )
+                _ime_text_pos += len(event.text)
+
+        # |Draw|--------------------------------------------------------------------------------------------------------
+        if draw:
+            width, height = 630, 450
+            # frame = pg.Surface((630, 450))
+            frame = pg.Surface((630, 450))
+            surface_to_draw = frame
+            WIN.fill(BLACK)
+
+            temp_ui_font = create_temp_font_1(height)
+            surface_to_draw.fill(UI_COLOUR_BACKGROUND)
+
+            surface_to_draw.blit(frame_1, (0, 0))
+
+
+            popup_uni = pg.Surface((popup_width, popup_height))
+            popup_uni.fill(UI_COLOUR_NEW_BACKGROUND)
+            font = create_temp_font_1(450)
+            popup_uni.blit(temp_ui_font.render(_ime_text, True, AMBER), [4, 4])
+
+            surface_to_draw.blit(popup_uni, pos)
+            pg.draw.rect(surface_to_draw, AMBER, (pos[0] - 2, pos[1] - 2, popup_width + 4, popup_height + 4), width=2)
+
+            scale_render(WIN, surface_to_draw, CLOCK)
+            pg.display.update()
+            CLOCK.tick(60)
+    #
+
+
+def confirmation_popup(WIN, CLOCK, pos, options, text="", do_crt=False, popup_width=256, return_everything=False, op_width=1, show_value=False):
     menu_logic = UniversalMenuLogic(
-        options
+        options, use_mouse_inputs=True, width=op_width
     )
     menu_overlay = pg.image.load(os.path.join("Sprites/UI/Overlay.png")).convert_alpha()
     frame_1 = some_bullshit_for_transitions(WIN)
@@ -1387,7 +1641,10 @@ def confirmation_popup(WIN, CLOCK, pos, options, text="", do_crt=True, popup_wid
     while True:
         do_shit = menu_logic.act(WIN, CLOCK)
         if do_shit:
-            return do_shit
+            output = do_shit
+            if return_everything:
+                output = menu_logic.options
+            return output
         # |Draw|--------------------------------------------------------------------------------------------------------
         if draw:
             width, height = 630, 450
@@ -1413,6 +1670,14 @@ def confirmation_popup(WIN, CLOCK, pos, options, text="", do_crt=True, popup_wid
             popup_uni = pg.Surface((popup_width, popup_height))
             popup_uni.fill(UI_COLOUR_NEW_BACKGROUND)
             menu_logic.draw(popup_uni, [0, height_mod])
+
+            if show_value:
+                for count, x in enumerate(menu_logic.options):
+                    if x["Value"] in ["Exit"]:
+                        continue
+                    pos = (80 + 24 * op_width, 30+ height_mod + 18 * count)
+                    popup_uni.blit(temp_ui_font.render(f"{x["Value"]}", True, AMBER), pos)
+
             if text != "":
                 # text_lines
                 for count, text_line in enumerate(text_lines):
@@ -1430,6 +1695,17 @@ def confirmation_popup(WIN, CLOCK, pos, options, text="", do_crt=True, popup_wid
             CLOCK.tick(60)
 
 
+def pick_from_list_popup(WIN, CLOCK, current_value, pick_list, choose_text="", pos=(100, 90), text=""):
+    default_value = 0
+    for count, ass in enumerate(pick_list):
+        if current_value == ass:
+            default_value = count
+    return pick_list[
+        confirmation_popup(WIN, CLOCK, pos, [
+            {"Name": choose_text, "Value": default_value, "On select": "Choose", "Render func": "Choose", "Choose": {"List": pick_list}},
+             {"Name": "Finish", "Value": "Finish", "On select": "Return", "Render func": "Text only"}],
+                           popup_width=500, return_everything=True, text=text)[0]["Value"]]
+
 def title_screen(WIN, CLOCK, controls):
     logo = pg.image.load(os.path.join("Sprites/Logo.png")).convert_alpha()
     menu_overlay = pg.image.load(os.path.join("Sprites/UI/Overlay.png")).convert_alpha()
@@ -1437,7 +1713,7 @@ def title_screen(WIN, CLOCK, controls):
     options = [
         {"Name": "Start", "Value": "Start", "On select": "Return", "Render func": "Text only"},
     ]
-    menu_logic = UniversalMenuLogic(options)
+    menu_logic = UniversalMenuLogic(options,)
 
     chosen_option = 0
     colour = [0, 0, 0]
@@ -1504,6 +1780,7 @@ def main_menu(WIN, CLOCK):
         {"Name": "Start Run", "Value": "Start", "On select": "Return", "Render func": "Text only"},
         {"Name": "Versus Mode", "Value": "Versus", "On select": "Return", "Render func": "Text only"},
         # {"Name": "Tutorials", "Value": "Tutorials", "On select": "Return", "Render func": "Text only"},
+        {"Name": "Custom Levels", "Value": "Custom Levels", "On select": "Return", "Render func": "Text only"},
         {"Name": "Options", "Value": "Options", "On select": "Return", "Render func": "Text only"},
         {"Name": "Credits", "Value": "Credits", "On select": "Return", "Render func": "Text only"},
         {"Name": "Databank", "Value": "Databank", "On select": "Return", "Render func": "Text only"},
@@ -1528,6 +1805,9 @@ def main_menu(WIN, CLOCK):
                 transition, frame_1 = menu_transition_start(WIN)
             if do_shit == "Versus":
                 return_value = "Versus"
+                break
+            if do_shit == "Custom Levels":
+                return_value = "Custom Levels"
                 break
 
             if do_shit == "Options":
@@ -8067,7 +8347,6 @@ def enemy_entry_unlock(enemy_type, faction, save_data, WIN, CLOCK):
         weapon_entry_unlock(gun, save_data, WIN, CLOCK)
 
 
-
 def boss_entry_unlock(boss, faction, save_data, WIN, CLOCK):
     if boss not in save_data["Databank entries unlocked"]:
         save_data["Databank entries unlocked"].append(boss)
@@ -8116,6 +8395,18 @@ def weapon_entry_unlock(gun, save_data, WIN, CLOCK):
                     WIN, CLOCK, UNLOCK_POPUP_POS,
                     [{"Name": "Continue", "Value": "No", "On select": "Return", "Render func": "Text only"}],
                     text=f"Entry '{unlocked_manufacturer}' added to Databank in 'Root\Organizations\Weapon Manufacturer'", popup_width=UNLOCK_POPUP_WIDTH)
+
+
+def make_directory(directory_name):
+    try:
+        os.mkdir(directory_name)
+    except FileExistsError:
+        print_to_error_stream(f"Directory '{directory_name}' already exists.")
+    except PermissionError:
+        print_to_error_stream(f"Permission denied: Unable to create '{directory_name}'.")
+    except Exception as e:
+        print_to_error_stream(f"An error occurred: {e}")
+
 
 
 import Particles    # Doing this so I can get all the stuff I need from fun
