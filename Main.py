@@ -614,7 +614,6 @@ def versus_mode(party_info):
             Fun.versus_end_menu(WIN, CLOCK, party_info, end_status)
 
 
-
 def custom_level():
     big_game_loop = True
 
@@ -635,7 +634,7 @@ def custom_level():
             scrolling_target_entities = []  # Use that
             # Load up the party
             player_count = 0
-            out_party = [["Lord", "Keyboard & Mouse"]]
+            out_party = [["Wizard", "Keyboard & Mouse"]]
             for count, player_to_add in enumerate(out_party):
                 name = player_to_add[0]
                 input_method = player_to_add[1]
@@ -675,7 +674,6 @@ def custom_level():
                     last_added_entity.free_var["Ally waypoint"] = mc
                 else:
                     last_added_entity.pos = level["spawn point"].copy()
-
 
                 # Reset the name to the correct one
                 last_added_entity.name = name

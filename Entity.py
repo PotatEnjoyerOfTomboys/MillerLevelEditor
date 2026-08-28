@@ -3733,8 +3733,8 @@ def enemy_input_faction_3_spotter(self, entities, level):
         aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
 
         # true_target = universal_pathfinding(self, level, move_target)
-        # if not true_target:
         #     true_target = move_target
+        # if not true_target:
             # entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.98, get_away=self.weapon.range * 0.75)
             # entity_shoot_no_startup_lag(self, og_dist, 256)
         #     self.input["Shoot"] = True
@@ -6431,6 +6431,49 @@ ACT_FREELY_DICT = {
          "Mark": ally_sub_input_sniper,
          "Vivianne": ally_sub_input_wizard
      }
+
+# |No Name TSS|---------------------------------------------------------------------------------------------------------
+# |No Name RSS|---------------------------------------------------------------------------------------------------------
+def enemy_input_commie_type_1(self, entities, level):
+    # This version is used by all commie bots
+    # Input functions are the IA for an enemy
+    # better targeting system
+    target, target_angle, wall_in = entity_target_detection(self, entities, level)
+
+    self.input = Fun.get_default_inputs()
+    if target:
+
+        aim_target = self.target.pos.copy()
+        move_target = target.copy()
+        self.angle = Fun.angle_between(aim_target, self.pos)
+
+        self.input["Right"] = self.pos[0] < target[0]
+        self.input["Left"] = self.pos[0] > target[0]
+        self.input["Down"] = self.pos[1] < target[1]
+        self.input["Up"] = self.pos[1] > target[1]
+
+        # Just randomly attack
+        if random.randint(0, self.weapon.fire_rate // 2) == 0:
+            self.input["Shoot"] = True
+        if not self.input["Shoot"]:
+            if random.randint(0, self.weapon.fire_rate) == 0:
+                self.input["Alt fire"] = True
+
+        # Check if something is in range
+        # if random.randint(0, self.weapon.fire_rate) == 0 and Fun.check_point_in_circle(
+        #         self.weapon.range * 0.8, self.pos[0], self.pos[1], target[0], target[1]) and not wall_in:
+        #     self.input["Shoot"] = True
+        # if self.weapon.weapon_class == "Melee":
+        #     if Fun.distance_between(target, self.pos) <= self.weapon.range:
+        #         # combo_stage = self.free_var[self.weapon.name]["Combo stage"]
+        #         self.input["Shoot"] = self.free_var[self.weapon.name]["Press time"] < 40  # - 10 * combo_stage
+
+    entity_spread_apart(self, entities)
+
+    # Stunned status manager
+    Fun.stunned_manager(self)
+    return target, target_angle
+
 # |Repertories|---------------------------------------------------------------------------------------------------------
 ENEMY_NO_OWNER = Entity({"name": "Nest Trooper",
          "faction": "FAC-1",
@@ -6977,6 +7020,27 @@ F3_RESIT_H = {"Physical": 0.5,  "Fire": 0.25, "Explosion": 0.33, "Energy": 0.4, 
 NO_RESIT_L = {"Physical": 1,    "Fire": 1,    "Explosion": 1,    "Energy": 1,       "Melee": 1,     "Healing": 0}
 
 GILG_RESIT = {"Physical": 0.6,  "Fire": 0.6,  "Explosion": 0.6,  "Energy": 0.6,     "Melee": 1.2, "Healing": 0}
+
+
+# No Name TSS resistance profiles
+RESISTANCES_NORMAL = {"Physical": 1, "Fire": 1, "Explosion": 1, "Energy": 1, "Melee": 1}
+RESISTANCES_FUCKING_INVINCIBLE = {"Physical": 0, "Fire": 0, "Explosion": 0, "Energy": 0, "Melee": 0}
+RESISTANCES_BOMB_SUIT = {"Physical": 0.75, "Fire": 1.5, "Explosion": 0.125, "Energy": 1, "Melee": 1}
+RESISTANCES_ASBESTOS_SUIT = {"Physical": 1.25, "Fire": 0.125, "Explosion": 1, "Energy": 1.25, "Melee": 1}
+RESISTANCES_ARMOURED = {"Physical": 0.75, "Fire": 0.75, "Explosion": 0.75, "Energy": 1.25, "Melee": 1}
+RESISTANCES_MACHINE = {"Physical": 1, "Fire": 0.25, "Explosion": 1.25, "Energy": 0.25, "Melee": 1}
+# Boss
+RESISTANCES_BOSS_DEFAULT = {"Physical": 1, "Fire": 1, "Explosion": 1, "Energy": 1, "Melee": 2}
+RESISTANCES_MINIBOSS_DEFAULT = {"Physical": 1.5, "Fire": 1.5, "Explosion": 1.5, "Energy": 1.5, "Melee": 3}
+RESISTANCES_BOSS_HIEROPHANT = {"Physical": 1, "Fire": 0.4, "Explosion": 1.25, "Energy": 0.4, "Melee": 2}
+RESISTANCES_BOSS_EMPEROR_EMPRESS_PHASE1 = {"Physical": 0.8, "Fire": 1, "Explosion": 1, "Energy": 0.9, "Melee": 1.7}
+RESISTANCES_BOSS_EMPEROR_EMPRESS_PHASE2 = {"Physical": 0.7, "Fire": 0.8, "Explosion": 0.8, "Energy": 0.7, "Melee": 1.5}
+RESISTANCES_CRAB = {"Physical": 0.6, "Fire": 0.6, "Explosion": 0.6, "Energy": 0.6, "Melee": 1}
+# Ally resistances
+RESISTANCES_ALLY_DEFAULT = {"Physical": 1, "Fire": 1, "Explosion": 1, "Energy": 1, "Melee": 1}
+RESISTANCES_DOPPELGANGER = {"Physical": 2, "Fire": 2, "Explosion": 2, "Energy": 2, "Melee": 2}
+RESISTANCES_MAKOTO = {"Physical": 0.9, "Fire": 1, "Explosion": 1, "Energy": 1, "Melee": 0.9}
+
 
 enemy_repertory = {
     #                   MHlt	MArm	Resits	Spd 	VisRg	SltMod	SltCntr	Size
@@ -7796,12 +7860,15 @@ enemy_repertory = {
         {"name": "Nest Trooper",
          "faction": "FAC-1",
          "type": "VIP",
+
          "targeting range": 450,
          "targeting angle": 25,
          "wall hack": False,
+
          "health": 200,
          "armour": 100,
          "damage resistances": NO_RESIT_L,
+
          "thickness": 16,
          "vel max": 3.25,
          "speed": 1.5,
@@ -7817,6 +7884,128 @@ enemy_repertory = {
              "Is VIP": True
          }
          },
+    # |No Name TSS|-----------------------------------------------------------------------------------------------------
+    # Street Gangs of Zoar
+    # Morgan's Pirates
+    # NEST
+    # CommieBots
+    "CommieBot.Hammer":
+        {"name": "CommieBot.Hammer",
+         "faction": "CommieBot",
+         "type": "close range",
+         "targeting range": 350,
+         "targeting angle": 15,
+         "wall hack": False,
+         "health": 100,
+         "armour": 0,
+         "damage resistances": RESISTANCES_MACHINE,
+         "thickness": 20,
+         "vel max": 1,
+         "speed": 1,
+         "friction": 1,
+         "weapon": "Hammer",
+         "func input": "enemy_input_commie_type_1",
+         "func act": "enemy_act_type_1",
+         "func draw": "enemy_draw_basic",
+         "sprites": "Sprites/Enemies/Commiebot.Hammer.png",
+         "on death": "none",
+         "free var": {}},
+    #       .Sickle
+    #           Uses slash weapon. Fast, low health.
+    "CommieBot.Sickle":
+        {"name": "CommieBot.Sickle",
+         "faction": "CommieBot",
+         "type": "close range",
+         "targeting range": 350,
+         "targeting angle": 15,
+         "wall hack": False,
+         "health": 30,
+         "armour": 0,
+         "damage resistances": RESISTANCES_MACHINE,
+         "thickness": 15,
+         "vel max": 5,
+         "speed": 1.5,
+         "friction": 1.5,
+         "weapon": "Sickle",
+         "func input": "enemy_input_commie_type_1",
+         "func act": "enemy_act_type_1",
+         "func draw": "enemy_draw_basic",
+         "sprites": "Sprites/Enemies/Commiebot.Sickle.png",
+         "on death": "none",
+         "free var": {}},
+    # .Kamikaze
+    #   Explose on death
+    "CommieBot.Kamikaze":
+        {"name": "CommieBot.Kamikaze",
+         "faction": "CommieBot",
+         "type": "close range",
+         "targeting range": 350,
+         "targeting angle": 15,
+         "wall hack": False,
+         "health": 10,
+         "armour": 0,
+         "damage resistances": RESISTANCES_MACHINE,
+         "thickness": 15,
+         "vel max": 7,
+         "speed": 2,
+         "friction": 2,
+         "weapon": "Sickle",
+         "func input": "enemy_input_commie_type_1",
+         "func act": "enemy_act_type_1",
+         "func draw": "enemy_draw_basic",
+         "sprites": "Sprites/Enemies/Commiebot.Kamikaze.png",
+         "on death": "on_death_kamikaze",
+         "free var": {}},
+    #       .Rifle
+    #           Uses a Semi-auto. Will always be shooting, even if the player is not in range
+    "CommieBot.Rifle":
+        {"name": "CommieBot.Rifle",
+         "faction": "CommieBot",
+         "type": "close range",
+         "targeting range": 550,
+         "targeting angle": 15,
+         "wall hack": False,
+         "health": 45,
+         "armour": 0,
+         "damage resistances": RESISTANCES_MACHINE,
+
+         "thickness": 15,
+         "vel max": 3,
+         "speed": 1.5,
+         "friction": 1.5,
+
+         "weapon": "Enemy Soviet Rifle",
+         "func input": "enemy_input_commie_type_1",
+         "func act": "enemy_act_type_1",
+         "func draw": "enemy_draw_basic",
+         "sprites": "Sprites/Enemies/Commiebot.Rifle.png",
+         "on death": "none",
+         "free var": {}},
+    "CommieBot.Molotov":
+        {"name": "CommieBot.Molotov",
+         "faction": "CommieBot",
+         "type": "close range",
+
+         "targeting range": 550,
+         "targeting angle": 15,
+         "wall hack": False,
+
+         "health": 45,
+         "armour": 0,
+         "damage resistances": RESISTANCES_MACHINE,
+
+         "thickness": 15,
+         "vel max": 2,
+         "speed": 1.5,
+         "friction": 1.5,
+         "weapon": "Enemy Molotov",
+
+         "func input": "enemy_input_commie_type_1",
+         "func act": "enemy_act_type_1",
+         "func draw": "enemy_draw_basic",
+         "sprites": "Sprites/Enemies/Commiebot.Molotov.png",
+         "on death": "none",
+         "free var": {}}
 }
 
 

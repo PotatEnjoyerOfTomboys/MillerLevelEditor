@@ -30,7 +30,7 @@
                                           1
                                     ],
                                     "Angle": "100",
-                                    "ID": "Infantry"
+                                    "ID": "CommieBot.Rifle"
                               },
                               {
                                     "Name": "Chopped Dick",
@@ -43,19 +43,144 @@
                                           1
                                     ],
                                     "Angle": 90.0,
-                                    "ID": "Skirmisher"
+                                    "ID": "CommieBot.Hammer"
                               },
                               {
                                     "Name": "Buttocks",
                                     "Type": "door",
                                     "Door ID": 1,
                                     "Door state": true
+                              },
+                              {
+                                    "Name": "Free var +",
+                                    "Type": "free var",
+                                    "Target free var": "Encounter_1",
+                                    "Operation": "Addition",
+                                    "Value": 1.0
+                              },
+                              {
+                                    "Name": "Cover Large",
+                                    "Type": "spawn",
+                                    "Class": "Item",
+                                    "Pos": [
+                                          19,
+                                          26,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Cover Large"
+                              },
+                              {
+                                    "Name": "Cover Moving",
+                                    "Type": "spawn",
+                                    "Class": "Item",
+                                    "Pos": [
+                                          19,
+                                          30,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Cover Moving"
+                              },
+                              {
+                                    "Name": "Delete",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          9,
+                                          33,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 160.0,
+                                    "ID": "CommieBot.Molotov"
+                              }
+                        ]
+                  }
+            ],
+            "Open Door 2": [
+                  "Open Door 2",
+                  {
+                        "rects": [],
+                        "Conditions": "trigger_check_encounter_waves"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": [
+                              {
+                                    "Name": "Aaa",
+                                    "Type": "door",
+                                    "Door ID": 0,
+                                    "Door state": false
+                              },
+                              {
+                                    "Name": "Barrel Smoke",
+                                    "Type": "spawn",
+                                    "Class": "Item",
+                                    "Pos": [
+                                          16,
+                                          41,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Smoke generator"
+                              },
+                              {
+                                    "Name": "Barrel Red",
+                                    "Type": "spawn",
+                                    "Class": "Item",
+                                    "Pos": [
+                                          26,
+                                          41,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Big ol Red Barrel"
+                              },
+                              {
+                                    "Name": "Barrel Oil",
+                                    "Type": "spawn",
+                                    "Class": "Item",
+                                    "Pos": [
+                                          7,
+                                          51,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Oil Barrel"
+                              },
+                              {
+                                    "Name": "Shrapnel Bom",
+                                    "Type": "spawn",
+                                    "Class": "Item",
+                                    "Pos": [
+                                          26,
+                                          51,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Shrapnel Bomb"
                               }
                         ],
-                        "": ""
+                        "": "",
+                        "E. num ref": "Encounter_1",
+                        "E. num stage": "1",
+                        "Specified amount": 0
                   }
             ]
       },
-      "free var": {},
+      "free var": {
+            "Encounter_1": 0,
+            "As": "1000"
+      },
       "name": "Ass Cheeks"
 }

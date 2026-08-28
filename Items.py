@@ -6,8 +6,8 @@ import Bullets
 import Fun
 import Particles
 import copy
+import os
 
-# from Bullets import Bullet
 
 
 def spawn_item(entities, item_name, pos, self=False):
@@ -77,6 +77,12 @@ class ItemGen2:
                     self.vel[i] += friction_strength
                 else:
                     self.vel[i] = 0
+
+    def entity_collision(self, entities):
+        for e in entities["entities"]:
+            if e == self: continue
+            if self.collision_box.colliderect(e.collision_box):
+                e.vel = Fun.move_with_vel_angle(e.vel, 2, Fun.angle_between(e.collision_box.center, self.pos))
 
     def act(self, entities, level):
         self.time += 1
@@ -241,6 +247,7 @@ def jeanne_turret_draw(self, WIN, scrolling):
 
 
 def jeanne_cover_act(self, entities, level):
+    self.entity_collision(entities)
     for b in entities["bullets"]:
         if b.team == self.team:
             continue
@@ -358,44 +365,6 @@ def jester_out_of_my_way(self, entities, level):
 
             Fun.damage_calculation(e, damage, "Melee", death_message="Ran over, by a pedestrian?")
     self.time_is_ticking()
-
-
-def landmine(self, entities, level):
-    radius = self.free_var["Radius"]
-    # "Time" "Radius" "Target"
-    #              "Explosion info": [0, 5, 10, 10,
-    #                                 {"Duration": 12,
-    #                                  "Growth": 4,
-    #                                  "Damage mod": 1}]
-    for e in entities["entities"]:
-        if e.team != "Players":
-            continue
-        if Fun.check_point_in_circle(radius, self.pos[0], self.pos[1], e.pos[0], e.pos[1]):
-            self.free_var["Time"] += 1
-            #   0 - 60      3
-            #  61 - 120     2
-            # 121 - 180     1
-            # 181 - 240     0
-            num = 3 - self.free_var["Time"] // 15
-            entities["UI particles"].append(
-                Particles.FloatingTextType2([self.pos[0], self.pos[1] - 8], 18,
-                                      f"{num}", [Fun.RED, Fun.ORANGE, Fun.YELLOW, Fun.WHITE][num], 1))
-            if self.free_var["Time"] >= 60:
-                self.alive = False
-                Bullets.spawn_bullet(self, entities, Bullets.ExplosionSecondary, self.pos, 0,
-                                     self.free_var["Explosion info"])
-            return
-    self.free_var["Time"] = 0
-
-
-def landmine_draw(self, WIN, scrolling):
-    WIN.blit(Fun.ENTITY_SHADOW, (self.pos[0] - 16 + scrolling[0], self.pos[1] + 1 + scrolling[1]),
-             special_flags=pg.BLEND_RGBA_SUB)
-    WIN.blit(
-        self.sprites[-1],
-        (self.pos[0] - 8 + scrolling[0],
-         self.pos[1] + scrolling[1])
-    )
 
 
 def dropped_weapon(self, entities, level):
@@ -595,6 +564,244 @@ def justice_homing(self, entities, level):
 # for p in Fun.desheetator(Fun.get_image("Sprites/Player/Tomboy/Sardine.png"), 8):
 #     print(p)
 #     print(len(p))
+
+# |Level shit|----------------------------------------------------------------------------------------------------------
+def landmine(self, entities, level):
+    radius = self.free_var["Radius"]
+    # "Time" "Radius" "Target"
+    #              "Explosion info": [0, 5, 10, 10,
+    #                                 {"Duration": 12,
+    #                                  "Growth": 4,
+    #                                  "Damage mod": 1}]
+    for e in entities["entities"]:
+        if e.team != "Players":
+            continue
+        if Fun.check_point_in_circle(radius, self.pos[0], self.pos[1], e.pos[0], e.pos[1]):
+            self.free_var["Time"] += 1
+            #   0 - 60      3
+            #  61 - 120     2
+            # 121 - 180     1
+            # 181 - 240     0
+            num = 3 - self.free_var["Time"] // 15
+            entities["UI particles"].append(
+                Particles.FloatingTextType2([self.pos[0], self.pos[1] - 8], 18,
+                                      f"{num}", [Fun.RED, Fun.ORANGE, Fun.YELLOW, Fun.WHITE][num], 1))
+            if self.free_var["Time"] >= 60:
+                self.alive = False
+                Bullets.spawn_bullet(self, entities, Bullets.ExplosionSecondary, self.pos, 0,
+                                     self.free_var["Explosion info"])
+            return
+    self.free_var["Time"] = 0
+
+
+def static_item_draw(self, WIN, scrolling):
+    WIN.blit(Fun.ENTITY_SHADOW, (self.pos[0] - 16 + scrolling[0], self.pos[1] + 1 + scrolling[1]),
+             special_flags=pg.BLEND_RGBA_SUB)
+    WIN.blit(
+        self.sprites[-1],
+        (self.pos[0] - 8 + scrolling[0],
+         self.pos[1] + scrolling[1])
+    )
+
+
+def item_cover(self, entities, level):
+    self.entity_collision(entities)
+    for b in entities["bullets"]:
+        # lasers to not affect cover
+        if Fun.collision_rect_circle(self.pos[0] - self.thiccness // 2, self.pos[1] - self.thiccness // 2,
+                                         self.thiccness, self.thiccness,
+                                         b.pos[0], b.pos[1], b.radius) and not b.laser:
+            # Remove the bullet
+            if not b.explosion:
+                b.duration = 0
+
+            # Make health go down
+            if self.free_var["Health"] > 0:
+                self.free_var["Health"] -= round(b.damage * {"Physical": 0.6,
+                                                             "Fire": 1,
+                                                             "Explosion": 10,
+                                                             "Energy": 0.4,
+                                                             "Melee": 1, "Healing": 0}[b.damage_type])
+            # Remove the cover when there's an explosion
+            if b.explosion:
+                self.free_var["Health"] = 0
+            # add shards for visual effects
+            sprite = self.sprites[self.animation_counter]
+            colour = sprite.get_at((random.randint(0, sprite.get_width() - 1),
+                                        random.randint(0, sprite.get_height() - 1)))
+            entities["particles"].append(Particles.Shard([self.pos[0], self.pos[1]], colour,
+                                                   random.uniform(2, 4), random.randint(30, 90),
+                                                   random.randint(-180, 180), size=random.randint(4, 6),
+                                                   slow_down=random.uniform(0, 0.5)))
+
+    if self.free_var["Health"] == 0:
+        self.life_time = 0
+    # self.animation_counter = self.free_var["Health"] // (self.free_var["Max"] // 4)
+    frames = 4
+    self.animation_counter = (self.free_var["Health"] // self.free_var["Max"]) // 4 % 4
+    # if self.animation_counter > 3:
+    #     self.animation_counter = 3
+
+    if self.life_time == 0:
+        self.alive = False
+        for x in range(random.randint(5, 15)):
+            sprite = self.sprites[self.animation_counter]
+            colour = sprite.get_at((random.randint(0, sprite.get_width() - 1),
+                                    random.randint(0, sprite.get_height() - 1)))
+            entities["particles"].append(Particles.Shard([self.pos[0], self.pos[1]], colour,
+                                                   random.uniform(2, 4), random.randint(30, 90),
+                                                   random.randint(-180, 180), size=random.randint(4, 6),
+                                                   slow_down=random.uniform(0, 0.5)))
+
+
+def item_cover_moving(self, entities, level):
+    self.entity_collision(entities)
+    for b in entities["bullets"]:
+        # lasers to not affect cover
+        if Fun.collision_rect_circle(self.pos[0] - self.thiccness // 2, self.pos[1] - self.thiccness // 2,
+                                         self.thiccness, self.thiccness,
+                                         b.pos[0], b.pos[1], b.radius) and not b.laser:
+            # Remove the bullet
+            if not b.explosion:
+                b.duration = 0
+
+            # Make health go down
+            if self.free_var["Health"] > 0:
+                self.free_var["Health"] -= round(b.damage * {"Physical": 0.6,
+                                                             "Fire": 1,
+                                                             "Explosion": 10,
+                                                             "Energy": 0.4,
+                                                             "Melee": 1, "Healing": 0}[b.damage_type])
+            # Remove the cover when there's an explosion
+            if b.explosion:
+                self.free_var["Health"] = 0
+            # add shards for visual effects
+            sprite = self.sprites[self.animation_counter]
+            colour = sprite.get_at((random.randint(0, sprite.get_width() - 1),
+                                        random.randint(0, sprite.get_height() - 1)))
+            entities["particles"].append(Particles.Shard([self.pos[0], self.pos[1]], colour,
+                                                   random.uniform(2, 4), random.randint(30, 90),
+                                                   random.randint(-180, 180), size=random.randint(4, 6),
+                                                   slow_down=random.uniform(0, 0.5)))
+            self.vel = Fun.move_with_vel_angle(self.vel, b.speed / 4 * b.radius / 7, b.angle)
+
+    if self.free_var["Health"] == 0:
+        self.life_time = 0
+    self.animation_counter = self.free_var["Health"] // (self.free_var["Max"] // 4)
+    if self.animation_counter > 3:
+        self.animation_counter = 3
+
+    if self.life_time == 0:
+        self.alive = False
+        for x in range(random.randint(5, 15)):
+            sprite = self.sprites[self.animation_counter]
+            colour = sprite.get_at((random.randint(0, sprite.get_width() - 1),
+                                    random.randint(0, sprite.get_height() - 1)))
+            entities["particles"].append(Particles.Shard([self.pos[0], self.pos[1]], colour,
+                                                   random.uniform(2, 4), random.randint(30, 90),
+                                                   random.randint(-180, 180), size=random.randint(4, 6),
+                                                   slow_down=random.uniform(0, 0.5)))
+
+
+def item_cover_draw(self, WIN, scrolling):
+    WIN.blit(Fun.ENTITY_SHADOW, (self.pos[0] - 16 + scrolling[0], self.pos[1] + 1 + scrolling[1]),
+             special_flags=pg.BLEND_RGBA_SUB)
+    WIN.blit(
+        self.sprites[self.animation_counter],
+        (self.pos[0] - 8 + scrolling[0],
+         self.pos[1] + scrolling[1])
+    )
+
+
+def item_big_ol_red_barrel(self, entities, bullets):
+    # Big ol Red Barrel
+    for b in entities["bullets"]:
+        if Fun.collision_rect_circle(self.pos[0] - self.thiccness // 2, self.pos[1] - self.thiccness // 2,
+                                         self.thiccness, self.thiccness,
+                                         b.pos[0], b.pos[1], b.radius) and not b.laser:
+            Bullets.spawn_bullet(
+                self, entities,
+                Bullets.ExplosionSecondary, self.pos, 0,
+                [0, 0, 10, 10, {"Duration": 10,
+                                "Growth": 5,
+                                "Damage mod": 1}])
+
+            self.alive = False
+            break
+
+
+def item_oil_barrel(self, entities, level):
+    # Big ol Red Barrel
+    for b in entities["bullets"]:
+        if Fun.collision_rect_circle(self.pos[0] - self.thiccness // 2, self.pos[1] - self.thiccness // 2,
+                                         self.thiccness, self.thiccness,
+                                         b.pos[0], b.pos[1], b.radius) and not b.laser:
+            for x in range(40):
+                pos = [self.pos[0], self.pos[1]]
+                angle = b.angle + random.uniform(-10, 10)
+                speed, duration, radius, damage = random.uniform(1, 3), random.randint(30, 120), random.randint(4, 7), 15
+
+                Bullets.spawn_bullet(
+                    self, entities,
+                    Bullets.Fire, pos, angle,
+                    [speed, duration, radius, damage, {"Particle allowed": False,
+                                                       "Burn chance": 0.25,
+                                                       "Burn duration": 30,
+                                                       "Colour": Fun.RED}])
+
+            Fun.play_sound("Fire 1", "SFX")
+            self.alive = False
+            break
+
+
+def item_shrapnel_bomb(self, entities, level):
+    # Big ol Red Barrel
+    for b in entities["bullets"]:
+        if Fun.collision_rect_circle(self.pos[0] - self.thiccness // 2, self.pos[1] - self.thiccness // 2,
+                                         self.thiccness, self.thiccness,
+                                         b.pos[0], b.pos[1], b.radius) and not b.laser:
+            for x in range(60):
+                pos = [self.pos[0], self.pos[1]]
+                angle = b.angle + random.uniform(-140, 140)
+                speed, duration, radius, damage = random.uniform(4, 7), random.randint(30, 120), random.randint(2, 5), 10
+
+                Bullets.spawn_bullet(
+                    self, entities,
+                    Bullets.Bullet, pos, angle,
+                    [speed, duration, radius, damage, {}])
+                entities["bullets"][-1].wall_physics = Bullets.base_grenade_wall_hit
+
+            Fun.play_sound("Fire 1", "SFX")
+            self.alive = False
+            break
+
+
+def item_smoke_generator(self, entities, bullets):
+    # Big ol Red Barrel
+    for b in entities["bullets"]:
+        if Fun.collision_rect_circle(self.pos[0] - self.thiccness // 2, self.pos[1] - self.thiccness // 2,
+                                         self.thiccness, self.thiccness,
+                                         b.pos[0], b.pos[1], b.radius) and not b.laser:
+
+            entities["items"].append(ItemGen2({
+                    "name": "Smoke Grenade",
+                    "friction": 0,
+                    "thickness": 1,
+                    "act": smoke_grenade,
+                    "draw": Fun.none,
+                    "sprites": [],
+                    "life time": 360,
+                    "free var": {
+                        "Duration": 300,
+                        "Radius": 96,
+                }},
+                self.pos))
+            self.alive = False
+
+
+# Car, cover that explodes on death
+
+
 item_repertory = {
     # |Cover|-----------------------------------------------------------------------------------------------------------
     # |Skill|-----------------------------------------------------------------------------------------------------------
@@ -758,20 +965,6 @@ item_repertory = {
         "life time": 30,
         "free var": {}
     },
-    "Landmine": {
-        "name": "Landmine",
-        "friction": 10,
-        "thickness": 16,
-        "act": landmine,
-        "draw": landmine_draw,
-        "sprites": [
-            Fun.get_image('Sprites/Items/Landmine.png'),
-        ],
-        "life time": -1,
-        "free var": {
-            "Time": 0, "Radius": 64,
-            "Explosion info": [0, 5, 10, 10, {"Duration": 12, "Growth": 4, "Damage mod": 1}]
-        }},
     "Dropped Weapon": {
         "name": "Dropped Weapon",
         "friction": 0.14,
@@ -793,5 +986,103 @@ item_repertory = {
         "life time": 30,
         "free var": {}
     },
+    #
+    "Landmine": {
+        "name": "Landmine",
+        "friction": 10,
+        "thickness": 16,
+        "act": landmine,
+        "draw": static_item_draw,
+        "sprites": [
+            Fun.get_image('Sprites/Items/Landmine.png'),
+        ],
+        "life time": -1,
+        "free var": {
+            "Time": 0, "Radius": 64,
+            "Explosion info": [0, 5, 10, 10, {"Duration": 12, "Growth": 4, "Damage mod": 1}]
+        }},
+    "Cover Large": {
+        "name": "Cover Large",
+        "friction": 10,
+        "thickness": 25,
+        "act": item_cover,
+        "draw": item_cover_draw,
+        "sprites": [
+             pg.image.load(os.path.join("Sprites/Items/Cover Large.png")).convert_alpha().subsurface((75, 00, 25, 25)),
+             pg.image.load(os.path.join("Sprites/Items/Cover Large.png")).convert_alpha().subsurface((50, 00, 25, 25)),
+             pg.image.load(os.path.join("Sprites/Items/Cover Large.png")).convert_alpha().subsurface((25, 00, 25, 25)),
+             pg.image.load(os.path.join("Sprites/Items/Cover Large.png")).convert_alpha().subsurface((00, 00, 25, 25))
+        ],
+        "life time": -1,
+        "free var": {"Health": 180, "Max": 180}},
+    "Cover Moving": {
+        "name": "Cover Moving",
+        "friction": 3,
+        "thickness": 25,
+        "act": item_cover_moving,
+        "draw": item_cover_draw,
+        "sprites": [
+             pg.image.load(os.path.join("Sprites/Items/Cover Large.png")).convert_alpha().subsurface((75, 25, 25, 25)),
+             pg.image.load(os.path.join("Sprites/Items/Cover Large.png")).convert_alpha().subsurface((50, 25, 25, 25)),
+             pg.image.load(os.path.join("Sprites/Items/Cover Large.png")).convert_alpha().subsurface((25, 25, 25, 25)),
+             pg.image.load(os.path.join("Sprites/Items/Cover Large.png")).convert_alpha().subsurface((00, 25, 25, 25))
+        ],
+        "life time": -1,
+        "free var": {"Health": 180, "Max": 180}},
+
+    # Bombs
+    # Big Ol Red Barrel
+    # Oil barrel
+    # Shrapnel bomb
+    "Big ol Red Barrel":
+        {"name": "Big ol Red Barrel",
+         "thickness": 15,
+         "act": item_big_ol_red_barrel,
+         "draw": static_item_draw,
+        "life time": -1,
+         "sprites": [
+             pg.image.load(os.path.join("Sprites/Items/Level Hazard.png")).convert_alpha().subsurface(0, 0, 16, 16)
+         ],
+         "free var": {},},
+    "Oil Barrel":
+        {"name": "Oil Barrel",
+         "thickness": 15,
+         "act": item_oil_barrel,
+         "draw": static_item_draw,
+         "free var": {},
+         "life time": -1,
+         "sprites": [
+             pg.image.load(os.path.join("Sprites/Items/Level Hazard.png")).convert_alpha().subsurface(16, 0, 16, 16)
+         ]},
+    "Shrapnel Bomb":
+        {"name": "Oil Barrel",
+         "thickness": 15,
+         "act": item_shrapnel_bomb,
+         "draw": static_item_draw,
+         "free var": {},
+         "life time": -1,
+         "sprites": [
+             pg.image.load(os.path.join("Sprites/Items/Level Hazard.png")).convert_alpha().subsurface(16, 0, 16, 16)
+         ]},
+    "Smoke generator":  # Something that creates smoke which conceals you for a bit
+        {"name": "Smoke generator",
+         "thickness": 15,
+         "act": item_smoke_generator,
+         "draw": static_item_draw,
+         "free var": {},
+         "life time": -1,
+         "sprites": [
+             pg.image.load(os.path.join("Sprites/Items/Level Hazard.png")).convert_alpha().subsurface(0, 16, 16, 16)
+         ]},
 }
 
+editor_items = [
+    "Landmine",
+    "Cover Large",
+    "Cover Moving",
+    "Big ol Red Barrel",
+    "Smoke generator",
+    "Oil Barrel",
+    "Shrapnel Bomb",
+
+]

@@ -8,6 +8,34 @@ import Particles
 import Fun
 
 
+TILES_DICT = {
+    "Industrial Floor": Fun.TILE_SET_INDUSTRIAL_FLOOR,
+    "Industrial Walls": Fun.TILE_SET_INDUSTRIAL_WALL,
+
+    "Entry Gate Floor": Fun.TILE_SET_ENTRY_GATE_FLOOR,
+    "Entry Gate Walls": Fun.TILE_SET_ENTRY_GATE_WALL,
+
+    "Red Desert Floor": Fun.TILE_SET_RED_DESERT_FLOOR,
+    "Red Desert Walls": Fun.TILE_SET_RED_DESERT_WALL,
+
+    "Sand Cave Floor":  Fun.TILE_SET_SAND_CAVES_FLOOR,
+    "Sand Cave Walls":  Fun.TILE_SET_SAND_CAVES_WALL,
+
+    "Iron Mine Floor":  Fun.TILE_SET_IRON_MINES_FLOOR,
+    "Iron Mine Walls":  Fun.TILE_SET_IRON_MINES_WALL,
+
+    "Salt Flats Floor": Fun.TILE_SET_SALT_FLATS_FLOOR,
+    "Salt Flats Walls": Fun.TILE_SET_SALT_FLATS_WALL,
+
+    "Paved Road":       Fun.TILE_SET_PAVED_ROAD,
+    "Interior Tiles":   Fun.TILE_SET_INTERIOR_TILES,
+
+    "Sewers Bars":      Fun.TILE_SET_SEWERS_BARS,
+    "Sewers Walls":     Fun.TILE_SET_SEWERS_WALL,
+    "Sewers Floor":     Fun.TILE_SET_SEWERS_FLOOR
+}
+
+
 def cutscene_reset(entities):
     entities["cutscene stage"], Fun.CUTSCENE_SKIP_TIMER[0] = 0, 0
 
@@ -116,6 +144,15 @@ def spawn_enemy(entities, enemy: str, pos: [int, int], angle: float, team="Enemi
             "FAC-1": Fun.OUTLINE_ENEMIES_FACTION_1,
             "FAC-2": Fun.OUTLINE_ENEMIES_FACTION_2,
             "FAC-3": Fun.OUTLINE_ENEMIES_FACTION_3,
+
+            "Pirate": Fun.OUTLINE_ENEMIES_FACTION_1,
+            "Street Gang": Fun.OUTLINE_ENEMIES_FACTION_2,
+            "CommieBot": Fun.OUTLINE_ENEMIES_FACTION_3,
+            "Nest": Fun.OUTLINE_ENEMIES_FACTION_2,
+
+            "Test": (0, 0, 0),
+            "Anomalies": (0, 0, 0),
+
             "Zoar Colonists": (0, 0, 0),
             "THR-1": (0, 0, 0),
         }[info["faction"]]
@@ -275,8 +312,7 @@ def trigger_check_for_time(self, entities, bullets, level, time_passed):
 def trigger_check_encounter_waves(self, entities, bullets, level, time_passed):
     # I love this function
     # "Specified amount" "E. num stage" "E. num ref"
-    if level["free var"][self.free_var["E. num ref"]] == self.free_var["E. num stage"]:
-
+    if int(level["free var"][self.free_var["E. num ref"]]) == int(self.free_var["E. num stage"]):
         value = trigger_check_under_specified_amount_enemies(self, entities, bullets, level, time_passed)
         if value:
             level["free var"][self.free_var["E. num ref"]] += 1
@@ -293,36 +329,37 @@ trigger_no_enemies = {"rects": [], "Conditions": trigger_check_zero_enemies}
 trigger_yes_boss = {"rects": [], "Conditions": trigger_check_boss_alive}
 trigger_constant = {"rects": [], "Conditions": trigger_check_constant}
 trigger_e_finished = {"rects": [], "Conditions": trigger_check_finished_encounter}
-# trigger_ep_finished = {"rects": [], "Conditions": trigger_check_m6e_end}  # Handles encounters with multiple waves
 
 
 def generic_event(self, entities, bullets, level, time_passed, screen, CLOCK):
     # Do shit with generic events
     for a in self.free_var["Default Event Actions"]:
-        #   track control
-        #       change
-        #       pause
-        #       stop
-        #   level end
-        #       win condition
-        #       loss condition
-        #   cutscene
-        #   radio transmission
-        #   free var manipulation
-        {
-            "spawn": generic_event_spawn,
-            "despawn": generic_event_despawn,
-            "door": generic_event_door,
-            "sound": generic_event_sound,
-            "level end": generic_event_level_end,
-            "cutscene": generic_event_cutscene,
-            "radio": generic_event_radio,
-            "free var": generic_event_free_var
-         }[a["Type"]](self, entities, bullets, level, time_passed, a)
-        #                             "level end": {"End level state": "win"},
-        #                             "cutscene": {},     # AAAAAAAAAAAAAAAAAAAA
-        #                             "radio": {},        # AAAAAAAAAAAAAAAAAAAA
-        #                             "free var": {"Target free var": "", "Operation": "Addition", "Value": 0}
+        # print(a["Name"])
+            #   level end
+            #       win condition
+            #       loss condition
+            #   cutscene
+            #   radio transmission
+        try:
+
+            {
+                "spawn": generic_event_spawn,
+                "despawn": generic_event_despawn,
+                "door": generic_event_door,
+                "sound": generic_event_sound,
+                "level end": generic_event_level_end,
+                "cutscene": generic_event_cutscene,
+                "radio": generic_event_radio,
+                "free var": generic_event_free_var
+             }[a["Type"]](self, entities, bullets, level, time_passed, a)
+            #                             "level end": {"End level state": "win"},
+            #                             "cutscene": {},     # AAAAAAAAAAAAAAAAAAAA
+            #                             "radio": {},        # AAAAAAAAAAAAAAAAAAAA
+        except Exception as e:
+            Fun.print_to_error_stream(f"Event: {self.name}, Action: {a['Name']}")
+            Fun.print_to_error_stream(f"{a}")
+            Fun.print_to_error_stream(f"An error occurred: {e}")
+
 
 
 def generic_event_spawn(self, entities, bullets, level, time_passed, info):
@@ -331,6 +368,8 @@ def generic_event_spawn(self, entities, bullets, level, time_passed, info):
     #       item    (no angle needed, extra info might be asked based on the item)
     #       bullets
     #                             "spawn": {"Class": "Entity", "Pos": [0, 0, 1, 1], "Angle": 0, "ID": ""},
+    if info["Class"] == "Item":
+        Items.spawn_item(entities, info["ID"], info["Pos"])
     if info["Class"] == "Entity":
         spawn_enemy(entities, info["ID"], info["Pos"], float(info["Angle"]))
 
@@ -361,12 +400,30 @@ def generic_event_door(self, entities, bullets, level, time_passed, info):
 
 def generic_event_sound(self, entities, bullets, level, time_passed, info):
     #                             "sound": {"Action": "Play", "Audio": "Silence"},
-    pass
+    if info["Action"] == "Play":
+        Fun.play_sound(info["Audio"])
+    if info["Action"] == "Change":
+        Fun.play_music(info["Audio"])
+    if info["Action"] == "Pause":
+        if pg.mixer.music.get_busy():
+            pg.mixer.music.pause()
+        else:
+            pg.mixer.music.unpause()
+    if info["Action"] == "Stop":
+        pg.mixer.music.stop()
 
 
 def generic_event_level_end(self, entities, bullets, level, time_passed, info):
     #                             "level end": {"End level state": "win"},
-    pass
+    time_till_end = 60 * 5
+    level["events"].append(MissionEvent("Finishing", trigger_timer, False, [finish_mission], free_var={"Timer": time_till_end}))
+    for e in entities["entities"]:
+        if e.team == "Players":
+            e.status["No damage"] = time_till_end
+
+    if info["End level state"] != "win":
+        Fun.stop_music()
+        level["free var"].update({"Loss": True})
 
 
 def generic_event_cutscene(self, entities, bullets, level, time_passed, info):
@@ -379,9 +436,26 @@ def generic_event_radio(self, entities, bullets, level, time_passed, info):
     pass
 
 
-def generic_event_free_var(self, entities, bullets, level, time_passed, info):
-     #                             "free var": {"Target free var": "", "Operation": "Addition", "Value": 0}
+def generic_event_change_character(self, entities, bullets, level, time_passed, info):
+    #   change_character
     pass
+
+
+def generic_event_free_var(self, entities, bullets, level, time_passed, info):
+    #                             "free var": {"Target free var": "", "Operation": "Addition", "Value": 0}
+
+    # "Addition", "Subtraction", "Multiplication", "Division", "Set"
+
+    if info["Operation"] == "Addition":
+        level["free var"][info["Target free var"]] += info["Value"]
+    if info["Operation"] == "Subtraction":
+        level["free var"][info["Target free var"]] -= info["Value"]
+    if info["Operation"] == "Multiplication":
+        level["free var"][info["Target free var"]] *= info["Value"]
+    if info["Operation"] == "Division":
+        level["free var"][info["Target free var"]] /= info["Value"]
+    if info["Operation"] == "Set":
+        level["free var"][info["Target free var"]] = info["Value"]
 
 
 # |Mission events|------------------------------------------------------------------------------------------------------
@@ -489,19 +563,7 @@ def mission_start(self, entities, bullets, level, time_passed, screen, CLOCK):
 
 def win(self, entities, bullets, level, time_passed, screen, CLOCK):
     time_till_end = 60 * 5
-    text_1 = "Objective completed."
-    text_2 = "Mission complete!"
-    if level['name'] == Fun.write_textline("Finale 1"):
-        time_till_end = 1200
-        text_1 = "Objective completed."
-        text_2 = "Mission complete!"
     level["events"].append(MissionEvent("Finishing", trigger_timer, False, [finish_mission], free_var={"Timer": time_till_end}))
-    radio_handler(entities,
-                  {
-                      "THR-1": [[Fun.SPRITE_RADIO_EMPLOYER[0], text_1, Fun.AMBER, time_till_end]],
-                      "Zoar Colonists": [[Fun.SPRITE_RADIO_MAKOTO[0], text_2, Fun.AMBER, time_till_end]],
-                  }[level["Player party"]]
-                  )
     for e in entities["entities"]:
         if e.team == "Players":
             e.status["No damage"] = time_till_end
@@ -514,13 +576,6 @@ def loss(self, entities, bullets, level, time_passed, screen, CLOCK):
     for e in entities["entities"]:
         if e.team != "Players":
             e.status["No damage"] = 300
-    radio_handler(entities,
-                  {
-                      "THR-1": [[Fun.SPRITE_RADIO_EMPLOYER[0], "Squad leader is down, retreat at once.", Fun.AMBER, 300]],
-                      "Zoar Colonists": [[Fun.SPRITE_RADIO_MAKOTO[0], "We failed get out of there!", Fun.AMBER, 300]],
-                  }[level["Player party"]]
-
-                  )
     level["free var"].update({"Loss": True})
     #
 
@@ -893,11 +948,11 @@ def load_level(level_to_load):
         'door state': [],
         'events': [],
         'level_finished': False,
-        'pathfinding': None,
+        'pathfinding': {'points': {'0': [0, 0], '1': [1, 0]}, 'connections': {'0': ['1'], '1': ['0']}},
         "width height": [map_data["size"][0] * 32, map_data["size"][1] * 32],
         'rendering': {
             "Segments": [],
-            "Tile set": {"Wall": Fun.TILE_SET_IRON_MINES_WALL, "Floor": Fun.TILE_SET_IRON_MINES_FLOOR}
+            "Tile set": {}
         },
         "spawn point": [
             map_data["spawn point"][0][0] * 32 + 16, map_data["spawn point"][0][1] * 32 + 16
@@ -912,8 +967,35 @@ def load_level(level_to_load):
         else:
             level["map"].append(pg.Rect([0, 0, 0, 0]))
 
+    # Pathfinding
+    level_map = pg.Surface([level["width height"][0]/32, level["width height"][1]/32]).convert_alpha()
     for w in map_data["map"]:
         level["map"].append(pg.Rect([s * 32 for s in w]))
+        pg.draw.rect(level_map, Fun.WHITE, w)
+
+    for p in map_data["pathfinding"]:
+        pg.draw.rect(level_map, (255, 255, 0), p)
+
+    # Fun.screenshot(level_map)
+    level['pathfinding'] = Fun.waypoint_connection_pathfinding_creator(level_map)
+
+    # Convert rendering info
+    for tile_set in map_data["rendering"]["Tile set"]:
+        level['rendering']['Tile set'].update({tile_set: TILES_DICT[map_data["rendering"]["Tile set"][tile_set]]})
+
+    for segment in map_data["rendering"]["Segments"]:
+        empty_segment = {
+            "Rect": pg.Rect([segment["Rect"][0] * 32 - 32, segment["Rect"][1] * 32 - 32,
+                             segment["Rect"][2] * 32 + 64, segment["Rect"][3] * 32 + 64])
+        }
+        for tiles in level['rendering']['Tile set']:
+            empty_part_list = []
+            if tiles not in segment:
+                continue
+            for w in segment[tiles]:
+                empty_part_list.append([y * 32 for y in w])
+            empty_segment.update({tiles: empty_part_list})
+        level['rendering']['Segments'].append(empty_segment)
 
     # Convert events
     for e in event_data["events"]:
@@ -931,15 +1013,7 @@ def load_level(level_to_load):
                  ["generic_event"], # Will need to update that for custom functions
                  free_var]
 
-        # "Super Aids": [
-        #                   true, ["generic_event"],
-        #                   {"Default Event Actions": [
-        #                       {"Name": "In your butt", "Type": "spawn", "Class": "Entity",
-        #                        "Pos": [15, 33, 1, 1], "Angle": "100", "ID": "Infantry"}],
-        #                    "": ""
-        #                   }
         level["events"].append(event)
-
 
     return level
 

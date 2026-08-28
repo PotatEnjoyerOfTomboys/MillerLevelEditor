@@ -8,9 +8,9 @@ import Event
 import Items
 import Entity
 # To add:
-#   Adding free variables
-#   Rendering generation
-#   Pathfinding graph generator
+#   Support for animated tiles
+#   Select playable character
+#   More props
 
 
 EMPTY_MAP_DATA = {"map": [],
@@ -20,14 +20,16 @@ EMPTY_MAP_DATA = {"map": [],
                       "Segments": [], # {Rect: [x, y, w, h], T: []}
                       "Tile set": {}
                   },
-                  "pathfinding": None, # {'points': {},  # "<id>": [<x>, <y>]'connections': {}  # "<id>": [<id of connected points>]},
+                  "pathfinding": [], # {'points': {},  # "<id>": [<x>, <y>]'connections': {}  # "<id>": [<id of connected points>]},
                   "spawn point": [[5, 5, 1, 1]],
                   "size": [80*8, 56*8]
                   }
-EMPTY_EVENT_DATA = {"events": {},
-                    # "ID": ['ID', {'rects': [], 'Conditions': 'trigger_check_constant'}, <single use or not>, [effects], {<free var for event>}]
-                    "free var": {},
-                    "name": "Unnamed level"
+EMPTY_EVENT_DATA = {
+    "name": "Unnamed level",
+    "events": {},
+    # "ID": ['ID', {'rects': [], 'Conditions': 'trigger_check_constant'}, <single use or not>, [effects], {<free var for event>}]
+    "free var": {},
+    "Characters": ["Curtis"]
 }
 EMPTY_FRAME = pg.Surface((630, 450), pg.SRCALPHA)
 ALL_TRIGGER_FUNC = []
@@ -113,7 +115,6 @@ def editor_menu(level, WIN, CLOCK):
         {"Name": "Free variable",   "Value": "Free variable",   "On select": "Return", "Render func": "Text only"},
         {"Name": "Metadata",        "Value": "Metadata",        "On select": "Return", "Render func": "Text only"},
         {"Name": "Save",            "Value": "Save",            "On select": "Return", "Render func": "Text only"},
-
         {"Name": "Exit", "Value": "Exit", "On select": "Return", "Render func": "Text only"},
     ]
     menu_logic = Fun.UniversalMenuLogic(options, use_mouse_inputs=True)
@@ -135,7 +136,7 @@ def editor_menu(level, WIN, CLOCK):
 
                     "Map": map_editor_func,
                     "Events": event_editor_func,
-                    "Free variable": free_var_editor_func,
+                    "Free variable": free_var_editor_func_main_menu_handler,
                     "Metadata": metadata_editor_func
                 }[do_shit]
             menu_logic.cooldown()
@@ -189,31 +190,14 @@ def save_level_info(WIN, CLOCK, map_data, event_data, level_name):
 def map_editor_func(WIN, CLOCK, map_data, event_data):
     # Handles mission editing
     # Geometry handles everything that the player character sees and interacts with
-    #   Layer 4     Rendering               (give the option to use an auto renderer at the start)
-    #                   Tile set generator
 
-    #   {
-    #       "map":
-    #       "doors":
-    #       "rendering": {
-    #             "Segments": [
-    #             {
-    #                'Rect': pg.Rect,   (area covered by the segment, user shouldn't need to touch that)
-    #                'Walls': [],
-    #                'Floor': [],
-    #              }
-    #             ],
-    #             "Tile set": {<ID>: <file path for tile>, ...}
-    #         }
-    #   }
     options = [
-        # {"Name": "Events", "Value": "Events", "On select": "Return", "Render func": "Text only"},
         {"Name": "Draw walls", "Value": "Walls", "On select": "Return", "Render func": "Text only"},
         {"Name": "Draw doors", "Value": "Doors", "On select": "Return", "Render func": "Text only"},
         {"Name": "Set door state", "Value": "Door state", "On select": "Return", "Render func": "Text only"},
         {"Name": "Spawn point", "Value": "Spawn", "On select": "Return", "Render func": "Text only"},
-        # Rendering
-        # Pathfinding?
+        {"Name": "Pathfinding", "Value": "Pathfinding", "On select": "Return", "Render func": "Text only"},
+        {"Name": "Rendering", "Value": "Rendering", "On select": "Return", "Render func": "Text only"},
         {"Name": "Exit", "Value": "Exit", "On select": "Return", "Render func": "Text only"},
     ]
     menu_logic = Fun.UniversalMenuLogic(options, use_mouse_inputs=True)
@@ -239,25 +223,28 @@ def map_editor_func(WIN, CLOCK, map_data, event_data):
                                                   background_rect_lists_colours=[Fun.WHITE, Fun.MAGENTA])
                 if old_doors != map_data["doors"]:
                     map_data["door state"] = [False for x in map_data["doors"]]
-
             if do_shit == "Door state":
                 state_options = []
                 for count, state in enumerate(map_data["door state"]):
                     state_options.append({"Name": f"{count}", "Value": state, "On select": "Switch", "Render func": "Text only"})
                 state_options.append({"Name": "Finish", "Value": "Exit", "On select": "Return", "Render func": "Text only"})
 
-                # TODO: Add a way to identify doors when setting their states. Use map drawing tool as a base
-                door_states = Fun.confirmation_popup(WIN, CLOCK, [315 - 128, 30],
-                                       state_options,
-                                       text="Set door state", return_everything=True, show_value=True, popup_width=400)
+                door_states = door_status_menu(WIN, CLOCK, [315 - 128, 30], state_options, map_data,
+                                               text="", popup_width=400, op_width=1)
                 for count, x in enumerate(map_data["door state"]):
                     map_data["door state"][count] = door_states[count]["Value"]
-
             if do_shit == "Spawn":
                 map_data["spawn point"] = map_draw_tool(WIN, CLOCK, map_data["size"], map_data["spawn point"], rect_list_colour=Fun.MAGENTA,
                                                         background_rect_lists=[map_data["map"], map_data["doors"]],
                                                         background_rect_lists_colours=[Fun.WHITE, Fun.RED],
                                                         point_selection_mode=True)
+            if do_shit == "Pathfinding":
+                map_data["pathfinding"] = map_draw_tool(WIN, CLOCK, map_data["size"], map_data["pathfinding"], rect_list_colour=Fun.YELLOW,
+                                                        background_rect_lists=[map_data["map"], map_data["doors"], map_data["spawn point"]],
+                                                        background_rect_lists_colours=[Fun.WHITE, Fun.RED, Fun.MAGENTA],
+                                                        point_selection_mode=True, multi_point_selection=True)
+            if do_shit == "Rendering":
+                rendering_editor_menu(WIN, CLOCK, map_data)
             menu_logic.cooldown()
 
         # |Draw|------------------------------------------------------------------------------------------------------------
@@ -281,14 +268,13 @@ def map_editor_func(WIN, CLOCK, map_data, event_data):
     return frame, empty_func, map_data, event_data
 
 
-def map_draw_tool(WIN, CLOCK, size, rect_list, rect_list_colour=Fun.WHITE, background_rect_lists=[], background_rect_lists_colours=[], point_selection_mode=False):
+def map_draw_tool(WIN, CLOCK, size, rect_list, rect_list_colour=Fun.WHITE, background_rect_lists=[], background_rect_lists_colours=[], point_selection_mode=False, multi_point_selection=False):
     # Rect list is the rectangles being drawn
     # size is the amount of 32px tiles in each direction
     canvas = pg.transform.scale(Fun.SPRITE_EMPTY, size)
     # canvas.convert_alpha()
     # canvas.fill((0, 0, 0, 0))
     draw_size = 8
-
     background_canvas = pg.transform.scale(Fun.SPRITE_EMPTY, size)
     background_canvas.set_alpha(128)
 
@@ -338,13 +324,13 @@ def map_draw_tool(WIN, CLOCK, size, rect_list, rect_list_colour=Fun.WHITE, backg
                 shape_type = "Line"
 
         if controller.input["Shoot"]:
-            if point_selection_mode:
+            if point_selection_mode and not multi_point_selection:
                 canvas = pg.transform.scale(Fun.SPRITE_EMPTY, size)
             shape_type, shape_first_point = map_draw_tool_brushes(
                 shape_type, canvas, rect_list_colour,
                 [spacing_control(mouse_pos[0]), spacing_control(mouse_pos[1]),],
                 shape_first_point, draw_size, scrolling, preview_only=False)
-        if controller.input["Alt fire"] and not point_selection_mode:
+        if controller.input["Alt fire"] and (not point_selection_mode or multi_point_selection):
             shape_type, shape_first_point = map_draw_tool_brushes(
                 shape_type, canvas, (0, 0, 0, 0),
                 [spacing_control(mouse_pos[0]), spacing_control(mouse_pos[1]),],
@@ -398,7 +384,7 @@ def map_draw_tool(WIN, CLOCK, size, rect_list, rect_list_colour=Fun.WHITE, backg
     for o in output:
         new_output.append([o[0]-1, o[1]-1, o[2], o[3]])
 
-    if point_selection_mode:
+    if point_selection_mode and not multi_point_selection:
         new_point = new_output[0]
         return [[new_point[0], new_point[1], 1, 1]]
     return new_output
@@ -458,13 +444,332 @@ def map_draw_tool_brushes(shape_type, surface, colour, pos, shape_first_point, d
     return shape_type, shape_first_point
 
 
+def door_status_menu(WIN, CLOCK, pos, options, map_data, text="", popup_width=128, op_width=1):
+    size = map_data["size"]
+
+    canvas = pg.transform.scale(Fun.SPRITE_EMPTY, size)
+    # canvas.convert_alpha()
+    # canvas.fill((0, 0, 0, 0))
+    draw_size = 8
+
+    background_canvas = pg.transform.scale(Fun.SPRITE_EMPTY, size)
+    background_canvas.set_alpha(128)
+    scrolling = [0, 0]
+
+    menu_logic = Fun.UniversalMenuLogic(
+        options, use_mouse_inputs=True, width=op_width
+    )
+    menu_overlay = pg.image.load(os.path.join("Sprites/UI/Overlay.png")).convert_alpha()
+    frame_1 = Fun.some_bullshit_for_transitions(WIN)
+    draw = True
+    text_lines = Fun.split_text(text, limit=80)
+    while True:
+        do_shit = menu_logic.act(WIN, CLOCK)
+        if do_shit:
+            output = menu_logic.options
+            return output
+        # |Draw|--------------------------------------------------------------------------------------------------------
+        if draw:
+            width, height = 630, 450
+            # frame = pg.Surface((630, 450))
+            frame = pg.Surface((630, 450))
+            surface_to_draw = frame
+            WIN.fill(Fun.BLACK)
+
+            # Draw grid background
+            for y in range(canvas.get_height() // draw_size):
+                for x in range(canvas.get_width() // draw_size):
+                    pg.draw.rect(surface_to_draw,
+                                 [
+                                     [(10, 10, 10), (25, 25, 25)][y % 2],
+                                     [(25, 25, 25), (10, 10, 10)][y % 2]
+                                 ][x % 2],
+                                 [x * draw_size + scrolling[0], y* draw_size + scrolling[1], draw_size, draw_size]
+                                 )
+            for w in map_data["map"]:
+                pg.draw.rect(background_canvas, Fun.WHITE, [s * draw_size for s in w])
+            for count, d in enumerate(map_data["doors"]):
+                col = [255, 0, 0]
+                if not menu_logic.options[count]["Value"]:
+                    col = [0, 255, 0]
+                if menu_logic.selected_option != count:
+                    col = [c * 0.4 for c in col]
+                pg.draw.rect(canvas, col, [s * draw_size for s in d])
+
+            temp_ui_font = Fun.create_temp_font_1(height)
+            surface_to_draw.fill(Fun.UI_COLOUR_BACKGROUND)
+
+            # surface_to_draw.blit(frame_1, (0, 0))
+
+            surface_to_draw.blit(background_canvas, scrolling)
+            surface_to_draw.blit(canvas, scrolling)
+
+            height_mod = 0
+            if text != "":
+                #
+                height_mod = 18 * len(text_lines)
+            popup_height = 17 * len(menu_logic.options) + 30 + height_mod
+            popup_uni = pg.Surface((popup_width, popup_height))
+            popup_uni.fill(Fun.UI_COLOUR_NEW_BACKGROUND)
+            menu_logic.draw(popup_uni, [0, height_mod])
+
+            for count, x in enumerate(menu_logic.options):
+                if x["Value"] in ["Exit"]:
+                    continue
+                pos = (80 + 24 * op_width, 30+ height_mod + 18 * count)
+                popup_uni.blit(temp_ui_font.render(f"{x["Value"]}", True, Fun.AMBER), pos)
+
+            # if text != "":
+            #     # text_lines
+            #     for count, text_line in enumerate(text_lines):
+            #         rendered_text = temp_ui_font.render(text_line, True, AMBER)
+            #         popup_uni.blit(rendered_text, [20, count * 18])
+
+            popup_uni.set_alpha(192)
+            surface_to_draw.blit(popup_uni, pos)
+            pg.draw.rect(surface_to_draw, Fun.AMBER, (pos[0] - 2, pos[1] - 2, popup_width + 4, popup_height + 4), width=2)
+
+            Fun.scale_render(WIN, surface_to_draw, CLOCK)
+            pg.display.update()
+            CLOCK.tick(60)
+
+
+def rendering_editor_menu(WIN, CLOCK, map_data):
+    editor_colours =  [
+        (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255), (255, 128, 128),
+        (128, 255, 128), (128, 128, 255), (255, 255, 128), (255, 128, 255), (128, 255, 255)
+    ]
+
+    # "Segments": [{
+    #   'Rect': pg.Rect,
+    #   'Wall': [],
+    #   'Floor': []}],
+    # "Tile set": {"Wall": TILE_SET_IRON_MINES_WALL, "Floor": TILE_SET_IRON_MINES_FLOOR}
+
+    # Check if rendering is empty, if empty make a basic one
+    if not map_data["rendering"]["Segments"]:
+        map_data["rendering"]["Tile set"] = {"Wall": 'Iron Mine Walls', "Floor": 'Iron Mine Floor'}
+        # Generate the render
+
+        render_map = pg.Surface([map_data["size"][0] / 8, map_data["size"][1] / 8])
+        render_map.fill((0, 0, 0))
+        for w in map_data["map"]:
+            pg.draw.rect(render_map, Fun.WHITE, w)
+
+        for y in range(render_map.get_height()):
+            for x in range(render_map.get_width()):
+                try:
+                    if render_map.get_at([x, y +1]) == (0, 0, 0) and render_map.get_at([x, y]) == Fun.WHITE:
+                        render_map.set_at([x, y], (0, 255, 255))
+                except IndexError:
+                    # We do not care
+                    pass
+
+        pg.image.save(render_map, "~AAA.png")
+        old_render_map = render_map
+        new_render_map = pg.Surface([map_data["size"][0]+2, map_data["size"][1] + 2])
+        new_render_map.fill((255, 0, 128))
+        new_render_map.blit(old_render_map, (1, 1))
+        render_map = new_render_map
+
+        map_data["rendering"]["Segments"] = render_segmenter(map_data, render_map)
+
+    # Convert segments into usable wall lists
+    tile_set_info = {
+        # <Tile set name>: [<rect>, ...]
+    }
+    for t in map_data["rendering"]["Tile set"]:
+        tile_set_info.update({t: []})
+    for count, segment in enumerate(map_data["rendering"]["Segments"]):
+        for s in segment:
+            if s == "Rect":
+                continue
+            # if s == "Wall":
+            #     print(segment[s])
+            for w in segment[s]:
+                tile_set_info[s].append(w)
+        # print(count)
+
+    # Give option to change or add a tile set
+    options = [
+    ]
+    for tile_set in tile_set_info:
+        options.append({"Name": tile_set, "Value": tile_set, "On select": "Return", "Render func": "Text only"})
+    options.append({"Name": "Add", "Value": "Add", "On select": "Return", "Render func": "Text only"})
+    options.append({"Name": "Exit", "Value": "Exit", "On select": "Return", "Render func": "Text only"})
+
+    menu_logic = Fun.UniversalMenuLogic(options, use_mouse_inputs=True)
+    frame = pg.Surface((630, 450))
+    draw = True
+    while True:
+        # |Menu Logic|--------------------------------------------------------------------------------------------------
+        do_shit = menu_logic.act(WIN, CLOCK)
+        if do_shit:
+            if do_shit == "Exit":
+                break
+            elif do_shit == "Add":
+                while True:
+                    potential_name = Fun.text_input_menu(WIN, CLOCK, surface_to_draw, [100, 60])
+
+                    allow_name = True
+                    if potential_name in map_data["rendering"]["Tile set"]:
+                        allow_name = False
+                        Fun.confirmation_popup(WIN, CLOCK, [315 - 128, 300],
+                        [{"Name": "Okay....", "Value": "You suck!", "On select": "Return", "Render func": "Text only"}],
+                                           text="Name is already taken. Choose another")
+                    if allow_name:
+                        break
+
+                # Pick a list for available tile set
+                new_tiles = Fun.pick_from_list_popup(WIN, CLOCK, "Industrial Floor", [t for t in Event.TILES_DICT])
+                tile_set_info.update({potential_name: []})
+                map_data["rendering"]["Tile set"].update({potential_name: new_tiles})
+            else:
+                chosen_sub = Fun.confirmation_popup(WIN, CLOCK, [100, 90], [
+                            {"Name": "Edit", "Value": "Edit", "On select": "Return", "Render func": "Text only"},
+                            {"Name": "Change Tileset", "Value": "Change", "On select": "Return", "Render func": "Text only"},
+                            {"Name": "Delete", "Value": "Delete", "On select": "Return", "Render func": "Text only"},
+                            {"Name": "Return", "Value": "Nothing", "On select": "Return", "Render func": "Text only"}
+                        ], popup_width=500)
+
+                if chosen_sub == "Edit":
+                    # Draw the tile set
+                    background_rect_lists = [map_data['map']]
+                    background_rect_lists_colours = [Fun.WHITE]
+                    col = editor_colours[0]
+                    for count, tile in enumerate(tile_set_info):
+                        if tile == do_shit:
+                            col = editor_colours[count]
+                            continue
+                        background_rect_lists.append(tile_set_info[tile])
+                        background_rect_lists_colours.append(editor_colours[count])
+
+                    tile_set_info[do_shit] = map_draw_tool(WIN, CLOCK, map_data['size'], tile_set_info[do_shit],
+                                  rect_list_colour=col,
+                                  background_rect_lists=background_rect_lists,
+                                  background_rect_lists_colours=background_rect_lists_colours)
+                elif chosen_sub == "Change":
+                    map_data["rendering"]["Tile set"][do_shit] = Fun.pick_from_list_popup(
+                        WIN, CLOCK, map_data["rendering"]["Tile set"][do_shit],
+                        [ppp for ppp in Event.TILES_DICT],
+                        choose_text="Tile set", pos=(100, 90),
+                        text="")
+                elif chosen_sub == "Delete":
+                    if Fun.confirmation_popup(WIN, CLOCK, [315 - 128, 300],
+                                              [
+                                                  {"Name": "No!", "Value": "No", "On select": "Return",
+                                                   "Render func": "Text only"},
+                                                  {"Name": "YES!", "Value": "Yes", "On select": "Return",
+                                                   "Render func": "Text only"},
+                                              ],
+                                              text="Delete event action?") == "Yes":
+                        tile_set_info.pop(do_shit)
+
+            menu_logic.cooldown()
+            # Update options
+            options = [
+            ]
+            for tile_set in tile_set_info:
+                options.append({"Name": tile_set, "Value": tile_set, "On select": "Return", "Render func": "Text only"})
+            options.append({"Name": "Add", "Value": "Add", "On select": "Return", "Render func": "Text only"})
+            options.append({"Name": "Exit", "Value": "Exit", "On select": "Return", "Render func": "Text only"})
+
+            menu_logic.options = options
+
+        # |Draw|------------------------------------------------------------------------------------------------------------
+        if draw:
+            # width, height = WIN.get_size()
+            width, height = 630, 450
+            frame = pg.Surface((630, 450))
+            surface_to_draw = frame
+            WIN.fill(Fun.BLACK)
+
+            surface_to_draw.fill(Fun.UI_COLOUR_BACKGROUND)
+
+            # surface_to_draw.blit(temp_ui_font.render("", True, AMBER), (25 + x_mod, 25))
+            menu_logic.draw(surface_to_draw, [5, 50])
+
+            # temp_ui_font = Fun.create_temp_font_1(height)
+
+            Fun.scale_render(WIN, surface_to_draw, CLOCK)
+            pg.display.update()
+        CLOCK.tick(60)
+
+    # Redo render info to make it usable
+    # tile_set_info
+    # Draw on
+
+    # for w in map_data["map"]:
+    #     pg.draw.rect(output_map, Fun.WHITE, w)
+
+    tile_dict = {}
+    render_maps = []
+    for count, tsss in enumerate(tile_set_info):
+        output_map = pg.Surface(map_data["size"])
+        output_map.fill((0, 0, 0))
+        for w in tile_set_info[tsss]:
+            # pg.draw.rect(output_map, editor_colours[count], w)
+            pg.draw.rect(output_map, Fun.WHITE, w)
+        # tile_dict.update({tsss: editor_colours[count]})
+        tile_dict.update({tsss: Fun.WHITE})
+
+        # pg.image.save(output_map, "~AAA.png")
+        old_render_map = output_map
+        new_render_map = pg.Surface([map_data["size"][0] + 2, map_data["size"][1] + 2])
+        new_render_map.fill((255, 0, 128))
+        new_render_map.blit(old_render_map, (1, 1))
+        render_maps.append(new_render_map)
+
+    map_data["rendering"]["Segments"] = []
+
+    # Make the tile dict
+    segment_list = []
+    for layer, tile_layer in enumerate(tile_dict):
+        segments_to_add = render_segmenter(map_data, render_maps[layer], tile_dict={tile_layer: Fun.WHITE})
+        # Compile segments
+        for x in segments_to_add:
+            if not x[tile_layer]:
+                continue
+            append_to_segment_list = True
+            for y in segment_list:
+                if x["Rect"] == y["Rect"]:
+                    append_to_segment_list = False
+                    y.update({tile_layer: x[tile_layer]})
+                    break
+            if append_to_segment_list:
+                segment_list.append(x)
+    map_data["rendering"]["Segments"] = segment_list
+
+
+def render_segmenter(map_data, render_map, tile_dict={'Wall': (0, 255, 255), 'Floor': (0, 0, 0)}):
+    segment_size = [16, 16]
+    convert_wall = lambda wall, p: [(wall[0] + p[0]) - 2, (wall[1] + p[1]) - 2, wall[2], wall[3]]
+    segments_to_return = []
+
+    for y in range(map_data["size"][1] // segment_size[1]):
+        for x in range(map_data["size"][0] // segment_size[0]):  #
+            pos = [(x * segment_size[0]) + 1,
+                   (y * segment_size[1]) + 1]
+
+            segment = pg.surface.Surface((segment_size[0] + 2, segment_size[1] + 2))
+            segment.fill((255, 0, 128))
+            segment.blit(render_map.subsurface(pos[0], pos[1], segment_size[0], segment_size[1]), (1, 1))
+            new_dict = {
+                'Rect': [pos[0], pos[1], segment_size[0], segment_size[1]],
+            }
+            for a in tile_dict:
+                new_dict.update({
+                    a: [convert_wall(wall, pos) for wall in Fun.advanced_image_to_map_geometry(segment, colours_to_check=[tile_dict[a]], size_mod=1)]
+                })
+            segments_to_return.append(new_dict)
+    return segments_to_return
+
+
 # |Event editing|-------------------------------------------------------------------------------------------------------
 def event_editor_func(WIN, CLOCK, map_data, event_data):
     # Handles mission editing
     #  Event trigger zones
-    options = [
-
-    ]
+    options = []
     for e in event_data["events"]:
         options.append({"Name": e, "Value": e, "On select": "Return", "Render func": "Text only"})
     options.append({"Name": "New event", "Value": "New", "On select": "Return", "Render func": "Text only"})
@@ -534,7 +839,6 @@ def event_editor_func(WIN, CLOCK, map_data, event_data):
 
 
 def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_modified):
-
     # [new_event_name, {'rects': [], 'Conditions': 'trigger_check_constant'}, True, [], {}]})
     options = [
         {"Name": "Edit Trigger", "Value": "Trigger", "On select": "Return", "Render func": "Text only"},
@@ -644,9 +948,7 @@ def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_mod
                     event_data["events"].pop(event_being_modified)
                     return map_data, event_data
             elif do_shit == "Free var":
-                # Get all event free vars
-                # Make a popup to edit them
-                pass
+                event_data["events"][event_being_modified][4] = free_var_editor_func(WIN, CLOCK, map_data, event_data, event_data["events"][event_being_modified][4])
             elif do_shit == "Exit":
                 break
             else:
@@ -678,8 +980,8 @@ def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_mod
                     else:
                         func_map = {
                             "spawn": {"Class": ["Entity", "Item"], "Pos": [0, 0, 1, 1], "Angle": 0, "ID":
-                                {"Entity": [e for e in Entity.unified_entity_repertory], "Item": [i for i in Items.item_repertory]}
-                                      # TODO: Add boss intro and
+                                {"Entity": [e for e in Entity.unified_entity_repertory], "Item": [i for i in Items.editor_items]}
+                                      # TODO: Add boss intro and team options
                                       },
                             "despawn": {"Method": ["Soft", "Hard"], "Conditions": []},
                             "door": {"Door ID": [d for d, ignore in enumerate(map_data["doors"])], "Door state": True}, # Need a function to select doors visually
@@ -690,7 +992,7 @@ def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_mod
                             "radio": {},
                             "free var": {"Target free var": [fv for fv in event_data["free var"]], "Operation": ["Addition", "Subtraction", "Multiplication", "Division", "Set"], "Value": 0}
                         }
-                        print([d for d, ignore in enumerate(map_data["doors"])])
+                        # print([d for d, ignore in enumerate(map_data["doors"])])
 
                         action_editor_func(WIN, CLOCK, event_action_modified, func_map=func_map[event_action_modified["Type"]], map_data=map_data)
 
@@ -771,17 +1073,12 @@ def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_mod
 
 
 def action_editor_func(WIN, CLOCK, action_to_edit, func_map, map_data=False):
-    # TODO: Implement event action editor
-    #   change action arguments
-
-    options = [
-    ]
+    options = []
     # Add options to edit options
     for count, field in enumerate(action_to_edit):
         if field in ["Name", "Type"]:
             continue
         options.append({"Name": field, "Value": field, "On select": "Return", "Render func": "Text only"})
-
     options.append({"Name": "Exit", "Value": "Exit", "On select": "Return", "Render func": "Text only"})
 
     # toggle between single use or not. (default is not)
@@ -809,7 +1106,6 @@ def action_editor_func(WIN, CLOCK, action_to_edit, func_map, map_data=False):
                 elif type(func_map[do_shit]) == list:
                     old_value = action_to_edit[do_shit]
                     action_to_edit[do_shit] = Fun.pick_from_list_popup(WIN, CLOCK, action_to_edit[do_shit], func_map[do_shit])
-
 
                     if do_shit == "Action" and action_to_edit["Type"] == "sound":
                         if old_value != action_to_edit[do_shit]:
@@ -869,19 +1165,11 @@ def action_editor_func(WIN, CLOCK, action_to_edit, func_map, map_data=False):
     #                       ["team", "equal", "enemies"]
     #                       ["name", "in", ["ass", "butt"]]
     #                       ["health", "less", 20]
-    #
-    #   door        (pick a door and set state either in open or closed)
-    #   sound
-    #       change music
-    #       pause music
-    #       stop music
-    #       play sound
     #   level end
     #       win condition
     #       loss condition
     #   cutscene
     #   radio transmission
-    #   free var manipulation
 
 
 def dict_editing_func(WIN, CLOCK, dictionary_to_edit, map_data=[], map_blueprint=False):
@@ -909,38 +1197,64 @@ def make_dict_type_map(dictionary_to_map, output):
     return output
 
 
-# print(make_dict_type_map({"A": 1, "B": {"C": [], "D": "1", "Alpha": {"Bitches": Fun.RED}}, "E": False}, {}))
+def free_var_editor_func_main_menu_handler(WIN, CLOCK, map_data, event_data):
+    event_data["free var"] = free_var_editor_func(WIN, CLOCK, map_data, event_data, event_data["free var"])
+    return WIN, empty_func, map_data, event_data
 
 
-def free_var_editor_func(WIN, CLOCK, map_data, event_data):
-    # Handles mission editing
-    options = [
-    ]
-    for f in event_data["free var"]:
-        options.append({"Name": f, "Value": event_data["free var"][f], "On select": "Return", "Render func": "Text only"})
+def free_var_editor_func(WIN, CLOCK, map_data, event_data, free_var_to_edit):
+    options = []
+    for f in free_var_to_edit:
+        options.append(
+            {"Name": f, "Value": free_var_to_edit[f], "On select": "Return", "Render func": "Text only"})
     options.append({"Name": "New free var.", "Value": "New", "On select": "Return", "Render func": "Text only"})
     options.append({"Name": "Exit", "Value": "Exit", "On select": "Return", "Render func": "Text only"})
     menu_logic = Fun.UniversalMenuLogic(options, use_mouse_inputs=True)
     frame = pg.Surface((630, 450))
     draw = True
     while True:
+
         # |Menu Logic|--------------------------------------------------------------------------------------------------
         do_shit = menu_logic.act(WIN, CLOCK)
-        if do_shit:
+        if do_shit or type(do_shit) != bool:
             if do_shit == "Exit":
                 break
             elif do_shit == "New":
                 # Pick name
                 # Check if name exists
+                while True:
+                    potential_name = Fun.text_input_menu(WIN, CLOCK, surface_to_draw, [100, 60])
+
+                    allow_name = True
+                    if potential_name in free_var_to_edit:
+                        allow_name = False
+                        Fun.confirmation_popup(WIN, CLOCK, [315 - 128, 300],
+                        [{"Name": "Okay....", "Value": "You suck!", "On select": "Return", "Render func": "Text only"}],
+                                           text="Name is already taken. Choose another")
+
+                    if allow_name:
+                        break
                 # Pick data type, string or int for now
-                pass
+                default_value = Fun.pick_from_list_popup(WIN, CLOCK, "Number", ["Number", "String"])
+                # Apply
+                free_var_to_edit.update({potential_name: {"String": "Default", "Number": 0}[default_value]})
+            # Add a way to delete
             else:
                 nums_only = type(menu_logic.options[menu_logic.selected_option]) in [int, float]
-                menu_logic.options[menu_logic.selected_option]["Value"] = Fun.text_input_menu(WIN, CLOCK, surface_to_draw, [100, 60], text=menu_logic.options[menu_logic.selected_option]["Value"], nums_only=nums_only)
+
+                free_var_to_edit[menu_logic.options[menu_logic.selected_option]["Name"]] = Fun.text_input_menu(WIN, CLOCK, surface_to_draw, [100, 60], text=menu_logic.options[menu_logic.selected_option]["Value"], nums_only=nums_only)
                 if nums_only:
-                    menu_logic.options[menu_logic.selected_option]["Value"] = float(menu_logic.options[menu_logic.selected_option]["Value"])
+                    free_var_to_edit[menu_logic.options[menu_logic.selected_option]["Name"]] = float(free_var_to_edit[menu_logic.options[menu_logic.selected_option]["Name"]])
 
             menu_logic.cooldown()
+            options = [
+            ]
+            for f in free_var_to_edit:
+                options.append(
+                    {"Name": f, "Value": free_var_to_edit[f], "On select": "Return", "Render func": "Text only"})
+            options.append({"Name": "New free var.", "Value": "New", "On select": "Return", "Render func": "Text only"})
+            options.append({"Name": "Exit", "Value": "Exit", "On select": "Return", "Render func": "Text only"})
+            menu_logic.options = options
 
         # |Draw|------------------------------------------------------------------------------------------------------------
         if draw:
@@ -962,13 +1276,14 @@ def free_var_editor_func(WIN, CLOCK, map_data, event_data):
 
         CLOCK.tick(60)
 
-    return frame, empty_func, map_data, event_data
+    return free_var_to_edit
 
 
 def metadata_editor_func(WIN, CLOCK, map_data, event_data):
     # Handles mission editing
     options = [
         {"Name": "Name", "Value": "Name", "On select": "Return", "Render func": "Text only"},
+        {"Name": "Characters", "Value": "Characters", "On select": "Return", "Render func": "Text only"},
         {"Name": "Starting Track", "Value": "Track", "On select": "Return", "Render func": "Text only"},
         {"Name": "Exit", "Value": "Exit", "On select": "Return", "Render func": "Text only"},
     ]
@@ -981,6 +1296,9 @@ def metadata_editor_func(WIN, CLOCK, map_data, event_data):
         if do_shit:
             if do_shit == "Name":
                 event_data["name"] = Fun.text_input_menu(WIN, CLOCK, surface_to_draw, [100, 60], text=event_data["name"])
+            if do_shit == "Characters":
+                #
+                pass
             if do_shit == "Exit":
                 break
 
@@ -1033,8 +1351,6 @@ def blue_func(WIN, CLOCK, map_data, event_data):
 
 
 #  Features
-# -Add mission events to a level
-# 	A dict is processed by a "Basic event class" to handle radio transmissions, entity spawns, doors
 # -Generate render for the level
 # 	Reuse THR-1's Assault chunk system for rendering
 # -Support custom events stored in a python file
@@ -1043,7 +1359,7 @@ def blue_func(WIN, CLOCK, map_data, event_data):
 # >Master Levels Directory
 # 	>Level Directory
 # 	Custom.py				stores special event functions for the level
-# 	Map_data_#.json			contains the level geometry, multiple files can be made to have multiple parts to a level and reduce memory usage.
+# 	Map_data.json			contains the level geometry, multiple files can be made to have multiple parts to a level and reduce memory usage.
 #                               rendering data is also stored in there
 # 						    	needs a way to load a map outside the level directory
 # 	level_data.json		    contains mission events, name of mission, track to use, character to use and meta data

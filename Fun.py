@@ -12,20 +12,20 @@ import time
 import datetime
 import sys
 # NN TSS remake plan
-#   M1, new map. takes place during Solar War. Becomes a prologue
-#   M2,
-#   M3,
-#   M4,
-#   M5,
-#   M6,
-#   M7,
-#   M8,
-#   M9, removed. Svenus is moved into the Lover side level with the doppelganger
-#   M10, the agency investigate the government office
-#   M11,
-#   M12,
-#   M13,
-#   M14,
+#   M1,                         new map. takes place during Solar War. Becomes a prologue
+#   M2, Mary Reed.              Map is longer, add effects to show the area is getting raided
+#   M3, Samuel and Charles,     new map
+#   M4, Jacquotte,              new map. really just need to improve the train switching mechanic.
+#   M5, Lawrence Reed           .
+#   M6, Morgan Reed,            a few more NEST encounters. combat encounters are longer and have more enemies
+#   M7,                         Sandstorm comes every so often to reduce visibility
+#   M8, Vivianne gets attacked  .
+#   M9,                         removed. Svenus is moved into the Lover side level with the doppelganger
+#   M10, agency investigate     Might actually include the investigation mechanic
+#   M11, NEST storage raid      .
+#   M12, Sparrow
+#   M13, Raid on iron mine      .
+#   M14, Goes in the desert     .
 
 # Fun.py is not fun
 # Here is many functions that are used a lot in the other files
@@ -938,6 +938,9 @@ TILES_RED_DESERT = get_image('Sprites/Environment/Sand.png')
 TILES_SAND_CAVES = get_image('Sprites/Environment/Sand Cave.png')
 TILES_IRON_MINES = get_image('Sprites/Environment/Iron Mines.png')
 TILES_SALT_FLATS = get_image('Sprites/Environment/Salt Flat.png')
+TILES_PAVED_ROAD = get_image('Sprites/Environment/Paved road.png')
+TILES_SEWERS = get_image('Sprites/Environment/Sewers.png')
+TILES_INTERIOR_TILES = get_image('Sprites/Environment/Interior tiles.png')
 
 # Tile sets
 TILE_SET_INDUSTRIAL_FLOOR = tile_set_creator(TILES_INDUSTRIAL)
@@ -957,6 +960,14 @@ TILE_SET_IRON_MINES_WALL = tile_set_creator(TILES_IRON_MINES.subsurface((96, 0, 
 
 TILE_SET_SALT_FLATS_FLOOR = tile_set_creator(TILES_SALT_FLATS)
 TILE_SET_SALT_FLATS_WALL = tile_set_creator(TILES_SALT_FLATS.subsurface((96, 0, 96, 96)))
+
+TILE_SET_PAVED_ROAD = tile_set_creator(TILES_PAVED_ROAD)
+TILE_SET_INTERIOR_TILES = tile_set_creator(TILES_INTERIOR_TILES)
+# Sewers Bars
+TILE_SET_SEWERS_BARS = tile_set_creator(TILES_SEWERS)
+TILE_SET_SEWERS_WALL = tile_set_creator(TILES_SEWERS.subsurface((96, 0, 96, 96)))
+TILE_SET_SEWERS_FLOOR = tile_set_creator(TILES_SEWERS.subsurface((192, 0, 96, 96)))
+
 # 96, 32
 
 
@@ -1705,6 +1716,7 @@ def pick_from_list_popup(WIN, CLOCK, current_value, pick_list, choose_text="", p
             {"Name": choose_text, "Value": default_value, "On select": "Choose", "Render func": "Choose", "Choose": {"List": pick_list}},
              {"Name": "Finish", "Value": "Finish", "On select": "Return", "Render func": "Text only"}],
                            popup_width=500, return_everything=True, text=text)[0]["Value"]]
+
 
 def title_screen(WIN, CLOCK, controls):
     logo = pg.image.load(os.path.join("Sprites/Logo.png")).convert_alpha()
@@ -6306,7 +6318,7 @@ def wall_between(p1, p2, level):
     return False
 
 
-def collision_check(self, walls):   # New version
+def collision_check_old(self, walls):   # New version
     future_rect = self.collision_box.copy()
     future_rect.move(self.vel[0], self.vel[1])
     thick = self.thiccness // 2 + 1
@@ -6339,6 +6351,49 @@ def collision_check(self, walls):   # New version
                     self.pos[0] = wall.left - thick
                 if left_side and not right_side:
                     self.pos[0] = wall.right + thick
+
+            self.collision_box = pg.Rect(self.pos[0] - self.thiccness / 2, self.pos[1] - self.thiccness / 2,
+                                         self.thiccness, self.thiccness)
+            future_rect = self.collision_box.copy()
+            future_rect.move(self.vel[0], self.vel[1])
+
+
+def collision_check(self, walls):   # New new version
+    future_rect = self.collision_box.copy()
+    future_rect.move(self.vel[0], self.vel[1])
+    thick = self.thiccness // 2 + 1
+
+    # Does the collisions
+    for wall in walls:
+        if future_rect.colliderect(wall):
+            top_left = wall.collidepoint(future_rect.topleft)
+            top_right = wall.collidepoint(future_rect.topright)
+            bottom_left = wall.collidepoint(future_rect.bottomleft)
+            bottom_right = wall.collidepoint(future_rect.bottomright)
+
+            top_side = top_left and top_right
+            bottom_side = bottom_left and bottom_right
+            right_side = bottom_right and top_right
+            left_side = bottom_left and top_left
+
+            # all_side = top_side and bottom_side and right_side and left_side
+
+            # if all_side:
+            #     self.vel[0] *= -1
+            #     self.vel[1] *= -1
+            # else:
+            if top_side and not bottom_side:
+                self.pos[1] = wall.bottom + thick
+                self.vel[1] = 0
+            if bottom_side and not top_side:
+                self.pos[1] = wall.top - thick
+                self.vel[1] = 0
+            if right_side and not left_side:
+                self.pos[0] = wall.left - thick
+                self.vel[0] = 0
+            if left_side and not right_side:
+                self.pos[0] = wall.right + thick
+                self.vel[0] = 0
 
             self.collision_box = pg.Rect(self.pos[0] - self.thiccness / 2, self.pos[1] - self.thiccness / 2,
                                          self.thiccness, self.thiccness)

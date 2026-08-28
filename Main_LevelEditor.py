@@ -1,8 +1,8 @@
-
 import pygame as pg
 import os
 import random
 import sys  # Cool video https://www.youtube.com/watch?v=2Yj5mmKWukw
+
 
 pg.mixer.pre_init()
 pg.init()

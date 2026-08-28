@@ -7,10 +7,9 @@ import Fun
 
 
 # async might be usable for the render functions
-
-
 # Render keeps all the draw functions used in normal gameplay
 # Check out 60 30 10 rule
+
 
 # |UI things|-----------------------------------------------------------------------------------------------------------
 def new_draw_teammate_display(surface_to_draw, teammate, pos, w):
@@ -124,17 +123,11 @@ def draw(WIN, CLOCK, time_passed, scrolling, scrolling_target, level, entities, 
 
     for segment in level["rendering"]["Segments"]:
         if camera_rect.colliderect(segment["Rect"]):
-            draw_multiple_rects(surface_to_draw, segment["Walls"], round_scrolling, tiles["Wall"], mode="All")
-            draw_multiple_rects(surface_to_draw, segment["Floor"], round_scrolling, tiles["Floor"], mode="All")
+            for t in level["rendering"]["Tile set"]:
+                if t not in segment:
+                    continue
+                draw_multiple_rects(surface_to_draw, segment[t], round_scrolling, tiles[t], mode="All")
 
-    # Draw connections between waypoints
-    # for w in level["pathfinding"]['connections']:
-    #     p1 = level["pathfinding"]['points'][w]
-    #     for c in level["pathfinding"]['connections'][w]:
-    #         p2 = level["pathfinding"]['points'][c]
-    #         pg.draw.line(surface_to_draw, Fun.YELLOW,
-    #                      [p1[0] + round_scrolling[0], p1[1] + round_scrolling[1]],
-    #                      [p2[0] + round_scrolling[0], p2[1] + round_scrolling[1]], 3)
     players = []
     for p_diddy in range(4):
         try:
