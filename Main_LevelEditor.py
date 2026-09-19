@@ -105,7 +105,7 @@ def pygame_splash_screen(WIN, CLOCK):
             # Draw the stuff
             surface_to_draw = pg.transform.scale(surface_to_draw, (slide_width, slide_height))
             WIN.blit(surface_to_draw, (width_s // 2 - slide_width // 2, height_s // 2 - slide_height // 2))
-            pg.display.update()
+            pg.display.flip()
             CLOCK.tick(60)
 
 

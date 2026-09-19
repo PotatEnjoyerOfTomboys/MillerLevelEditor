@@ -1,9 +1,8 @@
-from random import uniform
-
 import pygame as pg
 import random
 import math
 import sys
+
 
 import Fun
 import Bullets
@@ -19,9 +18,10 @@ from Fun import none, enemy_entry_unlock
 from Event import MissionEvent, loss_of_apc, trigger_constant
 
 
-class Entity:
-    __slots__=['agro', 'agro_decrease_rate', 'ai_state', 'aim_angle', 'angle', 'animation_counter', 'is_target', 'armour', 'armour_break', 'bullets_shot', 'collision_box', 'control', 'controller_angle', 'controller_control', 'crit', 'cutscene_mode', 'damage_taken', 'dash_allowed', 'dash_charge_time', 'dash_cooldown', 'dash_iframes', 'dash_speed', 'did_agro_raise', 'direction_angle', 'draw_aim_line', 'draw_angle', 'draw_rotated_dist', 'draw_targeting_range', 'driving', 'force_draw', 'free_var', 'friction', 'func_act', 'func_draw', 'func_input', 'health', 'input', 'input_mode', 'is_ally', 'is_boss', 'is_player', 'is_targeted', 'is_targeting', 'max_armour', 'max_health', 'mouse_control', 'mouse_pos', 'name', 'no_shoot_state', 'og_info', 'on_death', 'order_builder', 'pathfinding_old_positions', 'pos', 'reloading', 'resistances', 'running', 'shooting', 'shot_allowed', 'skills', 'sound_mod', 'speed', 'sprites', 'standing_still', 'status', 'stealth_counter', 'stealth_mod', 'target', 'targeting_angle', 'targeting_range', 'team', 'thiccness', 'time', 'upgrades', 'vel', 'vel_max', 'walking', 'wall_hack', 'weapon', 'weapon_draw_dist', 'owner', 'sprite_height']
+class Entity(Fun.Adam):
+    __slots__=['z', 'agro', 'agro_decrease_rate', 'ai_state', 'aim_angle', 'angle', 'animation_counter', 'faction', 'ai_type','is_target', 'armour', 'armour_break', 'bullets_shot', 'collision_box', 'control', 'controller_angle', 'controller_control', 'crit', 'cutscene_mode', 'damage_taken', 'dash_allowed', 'dash_charge_time', 'dash_cooldown', 'dash_iframes', 'dash_speed', 'did_agro_raise', 'direction_angle', 'draw_aim_line', 'draw_angle', 'draw_rotated_dist', 'draw_targeting_range', 'driving', 'force_draw', 'free_var', 'friction', 'func_act', 'func_draw', 'func_input', 'health', 'input', 'input_mode', 'is_ally', 'is_boss', 'is_player', 'is_targeted', 'is_targeting', 'max_armour', 'max_health', 'mouse_control', 'mouse_pos', 'name', 'no_shoot_state', 'og_info', 'on_death', 'order_builder', 'pathfinding_old_positions', 'pos', 'reloading', 'resistances', 'running', 'shooting', 'shot_allowed', 'skills', 'sound_mod', 'speed', 'sprites', 'standing_still', 'status', 'stealth_counter', 'stealth_mod', 'target', 'targeting_angle', 'targeting_range', 'team', 'thiccness', 'time', 'upgrades', 'vel', 'vel_max', 'walking', 'wall_hack', 'weapon', 'weapon_draw_dist', 'owner', 'sprite_height']
     def __init__(self, info, team="Players", pos=[0, 0], start_angle=0):
+        Fun.Adam.__init__(self)
         info = info.copy()
         self.og_info = info.copy()
         self.name = info["name"]
@@ -31,6 +31,12 @@ class Entity:
         self.is_boss = False
         self.crit = False
         self.owner = False
+        self.ai_type = "We balling in here"
+        if "type" in info:
+            self.ai_type = info["type"]
+        self.faction = "Factionless"
+        if 'faction' in info:
+            self.faction = info["faction"]
 
         # |Health and armour|-------------------------------------------------------------------------------------------
         self.max_health = info["health"]
@@ -125,10 +131,18 @@ class Entity:
         # |Functions|---------------------------------------------------------------------------------------------------
         self.func_input = info["func input"]
         if type(self.func_input) == str:
-            self.func_input = getattr(sys.modules[__name__], self.func_input)
+            try:
+                self.func_input = getattr(sys.modules[__name__], self.func_input)
+            except AttributeError:
+                self.func_input = getattr(Entity_Input_Funcs, self.func_input)
+
         self.func_act = info["func act"]
         if type(self.func_act) == str:
-            self.func_act = getattr(sys.modules[__name__], self.func_act)
+            try:
+                self.func_act = getattr(sys.modules[__name__], self.func_act)
+            except AttributeError:
+                self.func_act = getattr(Entity_Act_Funcs, self.func_act)
+
         self.func_draw = info["func draw"]
         if type(self.func_draw) == str:
             self.func_draw = getattr(sys.modules[__name__], self.func_draw)
@@ -181,6 +195,7 @@ class Entity:
         if "driving" in info:
             self.driving = info["driving"]
         self.free_var = info["free var"].copy()
+        self.free_var.update({"BS COMS": []})
 
         self.bullets_shot = []
         self.upgrades = []
@@ -191,18 +206,21 @@ class Entity:
         self.time += 1
         # Check for input form the Keyboard
         self.input = Fun.get_default_inputs()
-        self.func_input(self, entities, level)
 
+        self.func_input(self, entities, level)
 
         # Cinematic mode
         Fun.cutscene_mode(self, entities, level)
         # self.angle = Fun.angle_between(self.mouse_pos, self.pos)
 
     def act(self, entities, level):
+        self.z = self.pos[1]
+
         # Reset variables
         # self.shooting = False
         self.crit = False
         self.bullets_shot = []
+
         self.func_act(self, entities, level)
 
         for upgrade in self.upgrades:
@@ -246,9 +264,55 @@ class Entity:
         Fun.after_shooting_manager(self, self.weapon)
         #
 
-    def draw(self, screen, scrolling):
+    def draw(self, screen, scrolling, players, level):
+        if self in players or self.status["Visible"] > 0 or self.force_draw:
+            self.draw_actual(screen, scrolling)
+            return
+        # Skip hidden enemies
+        if self.status["Stealth"] > 0: return
+        # Only draw enemies who can be seen by a player
+        for ee in players:
+            # Get stealth range modifier
+            detection_modifier = pg.math.clamp(self.stealth_mod * ee.stealth_counter, -20, 1)
+            if not (Fun.distance_between(self.pos, ee.pos) < ee.targeting_range // 10 * detection_modifier or
+                    Fun.check_point_in_cone(
+                        ee.targeting_range * detection_modifier, ee.pos[0], ee.pos[1],
+                        self.pos[0], self.pos[1],
+                        ee.angle, ee.targeting_angle)):
+                continue
+            if Fun.wall_between(self.pos, ee.pos, level): continue
+            self.draw_actual(screen, scrolling)
+            break
+
+    def draw_actual(self, screen, scrolling):
         self.func_draw(self, screen, scrolling)
-        #
+        self.draw_bottom_health_bar(screen, scrolling)
+
+    def draw_bottom_health_bar(self, surface_to_draw, round_scrolling):
+        x_pos = self.pos[0] - 16 + round_scrolling[0]
+        y_pos = (self.pos[1] + 10) + self.thiccness // 2 + round_scrolling[1]
+
+        width = 32
+        health_height = 4
+        armour_height = 2
+
+        # Draws the health bar
+        pg.draw.rect(surface_to_draw, Fun.RED, (x_pos, y_pos, width * (self.health / self.max_health), health_height))
+        try:
+            pg.draw.rect(surface_to_draw, Fun.GREEN, (x_pos, y_pos, width * (self.armour / self.max_armour), armour_height))
+        except ZeroDivisionError:
+            pass
+        for count, skill in enumerate(self.skills):
+            val = pg.math.clamp(255 * skill.recharge / skill.recharge_max, 0, 255)
+            mod = 0
+            if skill.active:
+                mod = val
+            pg.draw.rect(surface_to_draw, (mod, mod, val),
+                         (x_pos + 16 * count, y_pos+health_height, 16, 2))
+        if self.status["Stunned"] > 0:
+            sprite = Fun.SPRITE_STUNNED[(self.status["Stunned"] // 6) % 2]
+            surface_to_draw.blit(sprite, [self.pos[0] + round_scrolling[0] - sprite.get_width() / 2,
+                                          self.pos[1] - 15 + round_scrolling[1]])
 
     def death(self, entities, level, scrolling_target_entities):
         self.on_death(self, entities, level)
@@ -273,8 +337,9 @@ class Entity:
         # Sliding need a special case to handle its animation
         if not self.standing_still:
             # print(player_direction)
-            frame_to_get = self.animation_counter[action_type] // 7 % (
-                    len(self.sprites[player_direction][action_type]) - 1) + 1
+            if len(self.sprites[player_direction][action_type]) > 1:
+                frame_to_get = self.animation_counter[action_type] // 7 % (
+                        len(self.sprites[player_direction][action_type]) - 1) + 1
 
         # Draws the player
         sprite_drawn = self.sprites[player_direction][action_type][frame_to_get]
@@ -282,798 +347,25 @@ class Entity:
     #
 
 
-# print([p for p in dir(Entity)])
 
-
-def draw_aim_line(self, entities):
-    if not self.draw_aim_line:
+# |Utility|-------------------------------------------------------------------------------------------------------------
+def dodging(self, entities, bullets, search_range=100, bullet_minimum=2, random_chance=(3, 0),
+            dodge_angles=(60, 120), dodge_vel=15, invulnerability_time=25):
+    if not random.randint(0, random_chance[0]) <= random_chance[1] or self.status["No damage"] != 0:
         return
-        # Get the max angle
-        #
-        #         "Startup lag": 0,
-        #         "Startup time": 120
-    draw_pos = Fun.move_with_vel_angle(self.pos, 20, self.aim_angle)
-    angle = self.aim_angle
-    drawing_pos = Fun.move_with_vel_angle(draw_pos, 20, angle)
-    length = self.weapon.range + 20
+    # Check if there bullets close to the boss, if the boss in invincible and a thing to make it a bit random
+    if Fun.get_number_of_thing_in_a_damn_circle(
+            entities, "bullets", search_range, self.pos[0], self.pos[1]) > bullet_minimum:
+        # Does the dodging part
+        dodge_angle = self.angle + random.randint(dodge_angles[0], dodge_angles[1]) * (-1 * random.randint(0, 1))
+        self.vel[0] += dodge_vel * math.cos(dodge_angle * math.pi / 180)
+        self.vel[1] += dodge_vel * math.sin(dodge_angle * math.pi / 180)
+        self.status["No damage"] += invulnerability_time
+
+        return True
+    return False
 
-    # Draw the lines
-    mod = self.free_var["Startup lag"]/self.free_var["Startup time"]
 
-    colour_index = [1]
-    if "aim line colour" in self.free_var:
-        colour_index = self.free_var["aim line colour"]
-    bg_colour = [0, 0, 0]
-    fg_colour = [0, 0, 0]
-    for i in colour_index:
-        bg_colour[i] = 125
-    for i in colour_index:
-        fg_colour[i] = 255 * mod
-
-    entities["background particles"].append(Particles.LineParticle(drawing_pos, bg_colour, 1, length, angle, 1, 0))
-
-    entities["background particles"].append(Particles.LineParticle(
-        drawing_pos, fg_colour, 1, length * mod, angle, 3,
-        0))
-
-
-def draw_weapon(self, WIN, scrolling):
-    draw_pos = [self.pos[0] + scrolling[0], self.pos[1] + scrolling[1]]
-    angle_to_add = 0
-    if self.reloading:
-        angle_to_add = (360 / self.weapon.reload_time) * self.no_shoot_state
-
-    # self.draw_angle
-    drawing_pos = Fun.move_with_vel_angle(draw_pos, 6 + self.weapon_draw_dist, self.aim_angle)
-    drawing_pos = Fun.move_with_vel_angle(drawing_pos, self.draw_rotated_dist, self.aim_angle + self.draw_angle)
-    origin = [0, self.weapon.sprite.get_height() // 2]
-
-    Fun.blitRotate(WIN, pg.transform.flip(self.weapon.sprite, True, -90 < self.aim_angle < 90),
-                   drawing_pos, origin, 180 - self.aim_angle + angle_to_add + self.draw_angle)
-
-
-# |Player inputs|-------------------------------------------------------------------------------------------------------
-def player_act(self, entities, level):
-    # |Aim system|--------------------------------------------------------------------------------------------------
-    Fun.aim_system(self, self.weapon)
-    # |Movement Input|----------------------------------------------------------------------------------------------
-    Fun.movement_player(self, entities)
-    # Fun.movement_entity(self)
-
-    # |GunPlay|-----------------------------------------------------------------------------------------------------
-    entities["UI particles"].append(Particles.AimPoint(self.mouse_pos))
-    # if self.weapon.ammo == 0 and self.weapon.ammo_cost > 0:
-    #     entities["UI particles"].append(
-    #         Fun.FloatingTextType2([self.mouse_pos[0], self.mouse_pos[1] - 12],
-    #                               18, Fun.write_textline("Input type Reload"), Fun.UI_COLOUR_TUTORIAL, 1)
-    #     )
-    self.weapon.passive(self, entities, level)
-    if self.no_shoot_state == 0:
-        # Reset variables
-        self.reloading = False
-
-        # Alternative fire
-        # print(self.input)
-        if self.input["Alt fire"]:
-            self.weapon.alt_fire(self, entities, level)
-
-        # |Main fire|-----------------------------------------------------------------------------------------------
-        if self.input["Shoot"]:
-            if self.weapon.ammo != 0 and self.shot_allowed:
-                # |Main fire|-------------------------------------------------------------------------------------------
-                self.shoot_bullet(entities, level)
-                # tell if the trigger was pressed
-                if not self.weapon.full_auto:
-                    self.shot_allowed = False
-            # if the trigger is not pressed and the weapon is not a full auto, allow to shoot for the next trigger press
-            elif self.weapon.ammo == 0 and self.shot_allowed:
-                Fun.play_sound(self.weapon.jamming_sound, "SFX")
-                self.shot_allowed = False
-        else:
-            self.shot_allowed = True
-
-        # |Reload|--------------------------------------------------------------------------------------------------
-        if self.input["Reload"] and self.weapon.ammo_pool > 0:
-            self.no_shoot_state, self.reloading = self.weapon.reload()
-
-    else:
-        self.no_shoot_state -= 1
-
-    # |Skills|------------------------------------------------------------------------------------------------------
-    Skills.skills_manager(self, entities, level)
-
-    # |Status effects|----------------------------------------------------------------------------------------------
-    # ha ha, Fun go brr
-    Fun.status_manager(self, entities)
-
-    # |Movement Output|---------------------------------------------------------------------------------------------
-    # Make the player move
-    Fun.movement_output(self, level)
-    if self.draw_aim_line or self.weapon.laser_sight:
-        entities["background particles"].append(Particles.LineParticle(
-            Fun.move_with_vel_angle(self.pos, 20, self.aim_angle), Fun.BLUE, 1, self.weapon.range-20, self.aim_angle, 2, 0))
-    # Give orders
-    if self.order_builder["Cooldown"] <= 0:
-        if self.order_builder["Current order"]:
-            self.order_builder["Time limit"] -= 1
-            # Write
-            mod = 10
-            pos = [self.pos[0] + 16, self.pos[1] - 48]
-            entities["particles"].append(Particles.FloatingTextType3(pos.copy(), 18, self.order_builder["Current order"], Fun.AMBER, 1))
-            pos[1] += mod
-            for x in [
-                f"{Fun.write_control(self, "Order Hold")}All Teammate",
-                f"{Fun.write_control(self, "Order Follow")}Teammate 1",
-                f"{Fun.write_control(self, "Order Attack")}Teammate 2",
-                f"{Fun.write_control(self, "Order Act Free")}Teammate 3"]:
-                pos[1] += mod
-                entities["particles"].append(Particles.FloatingTextType3(pos.copy(), 18, x, Fun.AMBER, 1))
-            pos[1] += mod
-            entities["particles"].append(Particles.GrowingSquare([pos[0], pos[1], 120, 8], Fun.UI_COLOUR_NEW_BACKDROP, [0, 0], 1))
-            entities["particles"].append(Particles.GrowingSquare([pos[0], pos[1], self.order_builder["Time limit"]//3, 8], Fun.AMBER_LIGHT, [0, 0], 1))
-
-            # Choose who to give the order to
-            if self.order_builder["Allow input"]:
-                if self.input["Order Hold"]:
-                    give_order(self, entities, [1, 2, 3])
-                if self.input["Order Follow"]:
-                    give_order(self, entities, [1])
-                if self.input["Order Attack"]:
-                    give_order(self, entities, [2])
-                if self.input["Order Act Free"]:
-                    give_order(self, entities, [3])
-            elif not (self.input["Order Hold"] or self.input["Order Follow"] or self.input["Order Attack"] or self.input["Order Act Free"]):
-                self.order_builder["Allow input"] = True
-
-            # Reset if time out
-            if self.order_builder["Time limit"] < 0:
-                self.order_builder["Current order"] = False
-                self.order_builder["Cooldown"] = 120
-        else:
-            # Choose the order
-            opt = False
-            if self.input["Order Hold"]:
-                opt = True
-                self.order_builder["Current order"] = "Hold"
-            if self.input["Order Follow"]:
-                opt = True
-                self.order_builder["Current order"] = "Follow"
-            if self.input["Order Attack"]:
-                opt = True
-                self.order_builder["Current order"] = "Attack"
-            if self.input["Order Act Free"]:
-                opt = True
-                self.order_builder["Current order"] = "Freely"
-
-            # Add cooldown
-            if opt:
-
-                self.order_builder["Allow input"] = False
-                self.order_builder["Time limit"] =  120 * 3
-
-    else:
-        self.order_builder["Cooldown"] -= 1
-
-    if self.armour_break:
-        # Need a sound effect
-        self.armour_break = False
-        number_of_particle = 18
-        for particles_to_add in range(360 // number_of_particle):
-            entities["background particles"].append(Particles.RandomParticle2(
-                [self.pos[0], self.pos[1]], Fun.GREEN, 2 * random.random(), random.randint(15, 45),
-                                                        particles_to_add * number_of_particle,
-                size=Fun.get_random_element_from_list([3, 4, 6])))
-
-
-def vivianne_act(self, entities, level):
-    player_act(self, entities, level)
-    # Summon mechanic
-    # "Summon cooldown time": 360, "Summon cooldown": 0, "Summon limit": 1, "Summon pool": [], "Active summons": []
-    if self.free_var["Summon pool"]:
-        summon_allowed = len(self.free_var["Active summons"]) < self.free_var["Summon limit"]
-        if self.free_var["Summon cooldown"] == 0:
-            if self.input["Interact"]:
-                if summon_allowed:
-                    # Select summon to spawn
-                    valid_pool = []
-                    for summon in self.free_var["Summon pool"]:
-                        if summon not in self.free_var["Active summons"]:
-                            valid_pool.append(summon)
-
-                    if valid_pool:
-                        Particles.random_particle_2_circle(entities, self.pos, 2.3333333333333333333333333333333, 15, 18,
-                                                     colour=Fun.YELLOW, size=5)
-                        selected_summon = player_repertory[Fun.get_random_element_from_list(valid_pool)]
-                        entities["entities"].append(
-                            Entity(
-                                selected_summon,
-                                pos=Fun.random_point_in_donut(self.pos, [2, 8]),
-                                start_angle=self.aim_angle
-                            ))
-                        self.free_var["Active summons"].append(selected_summon["name"])
-                        self.free_var["Summon cooldown"] = self.free_var["Summon cooldown time"]
-                        entities["entities"][-1].owner = self
-        else:
-            self.free_var["Summon cooldown"] -= 1
-        # Draw shit
-        # "UI particles"    square, colour, growth, duration
-        entities["UI particles"].append(Particles.Square([self.pos[0]+16, self.pos[1] - 8, 1, 4], Fun.DARK, 1))
-        entities["UI particles"].append(Particles.Square([self.pos[0]+16, self.pos[1] - 4, 4, 4], Fun.DARK, 1))
-        entities["UI particles"].append(Particles.Square([self.pos[0]+16, self.pos[1], 3, 4], Fun.DARK, 1))
-        entities["UI particles"].append(Particles.Square([self.pos[0]+16, self.pos[1] + 4, 4, 4], Fun.DARK, 1))
-        cooldown_time = 32 - round(32 * self.free_var["Summon cooldown"] / self.free_var["Summon cooldown time"])
-
-        col = Fun.GRAY
-        if summon_allowed:
-            col = Fun.LIGHT_GRAY
-        for x in range(4):
-            p = cooldown_time - 4
-            if p < 0:
-                p += abs(p)
-            dif = cooldown_time - p
-            cooldown_time = p
-            entities["UI particles"].append(Particles.Square([
-                self.pos[0] + 16,
-                self.pos[1] + [-8, -4, 0, 4][x],
-                [1, 4, 3, 4][x],
-                dif], col, 1))
-
-
-def vivianne_summons_act(self, entities, level):
-    # |Aim system|------------------------------------------------------------------------------------------------------
-    Fun.aim_system(self, self.weapon)
-    # |Movement Input|--------------------------------------------------------------------------------------------------
-    Fun.movement_player(self, entities)
-
-    # |GunPlay|---------------------------------------------------------------------------------------------------------
-    self.weapon.passive(self, entities, level)
-    if self.no_shoot_state == 0:
-        # Reset variables
-        self.reloading = False
-        self.shooting = False
-
-        # Alternative fire
-        if self.input["Alt fire"]:
-            self.weapon.alt_fire(self, entities, level)
-
-        # |Main fire|---------------------------------------------------------------------------------------------------
-        if self.input["Shoot"]:
-            if self.weapon.ammo != 0 and self.shot_allowed:
-                # |Main fire|-------------------------------------------------------------------------------------------
-                self.shoot_bullet(entities, level)
-
-                # tell if the trigger was pressed
-                if not self.weapon.full_auto:
-                    self.shot_allowed = False
-            # if the trigger is not pressed and the weapon is not a full auto, allow to shoot for the next trigger press
-            elif self.weapon.ammo == 0 and self.shot_allowed:
-                Fun.play_sound(self.weapon.jamming_sound, "SFX")
-                self.shot_allowed = False
-        else:
-            self.shot_allowed = True
-
-        # |Reload|------------------------------------------------------------------------------------------------------
-        if self.input["Reload"] and self.weapon.ammo_pool > 0:
-            self.no_shoot_state, self.reloading = self.weapon.reload()
-    else:
-        self.no_shoot_state -= 1
-
-    # |Status effects|--------------------------------------------------------------------------------------------------
-    Fun.status_manager(self, entities)
-    # |Movement Output|-------------------------------------------------------------------------------------------------
-    # Make the player move
-    Fun.movement_output(self, level)
-    if self.draw_aim_line or self.weapon.laser_sight:
-        entities["background particles"].append(Particles.LineParticle(
-            Fun.move_with_vel_angle(self.pos, 20, self.aim_angle), Fun.BLUE, 1, self.weapon.range-20, self.aim_angle, 2, 0))
-
-    self.force_draw = True
-    if self.free_var["Life Limit"] == self.time:
-        self.health = 0
-        # vivianne_summons_on_death(self, entities, level)
-
-
-
-def fortress_act(self, entities, level):
-    vehicle_escort(self, level)
-    angle = self.free_var["Move angle"] + 226 - 180
-    pos = [self.pos[0], self.pos[1] - 16]
-    pos = Fun.move_with_vel_angle(pos, 22.6274, angle)
-    pos = Fun.move_with_vel_angle(pos, 20, self.aim_angle)
-    # |Movement Input|----------------------------------------------------------------------------------------------
-    self.running = False
-    self.walking = False
-
-    max_vel = self.vel_max
-
-    # Handle double speed and slowness status
-    if self.status["Slowness"]:
-        max_vel *= 0.5
-    if self.status["Double speed"]:
-        max_vel *= 2
-
-    # Checks for which direction the player must move
-    # Rework it so that you are not faster when walking in diagonal, this should be fixed now
-    if self.dash_cooldown <= 0:
-        allow_correction = False
-        speed = 0
-        if self.input["Up"]:
-            speed = 1
-            allow_correction = True
-        if self.input["Down"]:
-            speed = -1
-            allow_correction = True
-        if self.input["Left"]:
-            self.free_var["Move angle"] -= 3
-        if self.input["Right"]:
-            self.free_var["Move angle"] += 3
-        self.vel = Fun.move_with_vel_angle(self.vel, self.speed * speed, self.free_var["Move angle"])
-
-        if not Fun.check_point_in_circle(max_vel, 0, 0, self.vel[0], self.vel[1]) and allow_correction:
-            self.vel = Fun.move_with_vel_angle([0, 0], max_vel * speed, self.free_var["Move angle"])
-        self.walking = allow_correction
-
-        if self.free_var["Move angle"] > 180:
-            self.free_var["Move angle"] = -180 + (self.free_var["Move angle"] - 180)
-        if self.free_var["Move angle"] < -180:
-            self.free_var["Move angle"] = 180 - (self.free_var["Move angle"] + 180)
-
-    self.standing_still = False
-    if self.vel == [0, 0]:
-        self.standing_still = True
-    elif self.cutscene_mode:
-        # This makes entities use their walking animation during cutscenes
-        self.walking = True
-
-    # Dash mechanic
-    if self.dash_cooldown <= 0 and not self.standing_still and self.input["Dash"]:
-        # Handle dash here
-        Fun.play_sound("Player dash", modified_volume=0.25)
-        dash_angle = self.free_var["Move angle"]
-        self.dash_cooldown = self.dash_charge_time
-        if self.status["Dash recovery up"] > 0:
-            self.dash_cooldown //= 2
-        self.vel = Fun.move_with_vel_angle(self.vel, self.dash_speed / self.friction * speed, dash_angle)
-        for x in range(4):
-            angle = dash_angle - 15 - 3.25 * 2 + x * 7.5 * 2
-            entities["particles"].append(
-                Particles.RandomParticle2(
-                    Fun.move_with_vel_angle([self.pos[0], self.pos[1]], -4, angle),
-                    Fun.WHITE, 1.5 + random.uniform(0, 2), 24, angle))
-
-        if self.status["No damage"] < self.dash_iframes:
-            self.status["No damage"] += self.dash_iframes
-    self.dash_cooldown -= 1
-
-    # |GunPlay|-----------------------------------------------------------------------------------------------------
-    angle = self.aim_angle
-    drawing_pos = pos
-    length = self.weapon.range + 20
-
-    # Draw the lines
-    entities["background particles"].append(Particles.LineParticle(drawing_pos, Fun.RED, 1, length, angle, 1, 0))
-
-    entities["UI particles"].append(Particles.AimPoint(self.mouse_pos))
-    self.weapon.passive(self, entities, level)
-    if self.no_shoot_state == 0:
-        # Reset variables
-        self.reloading = False
-
-        if self.input["Alt fire"]:
-            self.weapon.alt_fire(self, entities, level)
-
-        # |Main fire|-----------------------------------------------------------------------------------------------
-        if self.input["Shoot"]:
-            if self.weapon.ammo != 0 and self.shot_allowed:
-                # |Main fire|-------------------------------------------------------------------------------------------
-                self.shoot_bullet(entities, level)
-
-                # tell if the trigger was pressed
-                if not self.weapon.full_auto:
-                    self.shot_allowed = False
-            # if the trigger is not pressed and the weapon is not a full auto, allow to shoot for the next trigger press
-            elif self.weapon.ammo == 0 and self.shot_allowed:
-                Fun.play_sound(self.weapon.jamming_sound, "SFX")
-                self.shot_allowed = False
-        else:
-            self.shot_allowed = True
-
-        # |Reload|--------------------------------------------------------------------------------------------------
-        if self.input["Reload"] and self.weapon.ammo_pool > 0:
-            self.no_shoot_state, self.reloading = self.weapon.reload()
-    else:
-        self.no_shoot_state -= 1
-
-    Fun.aim_system(self, self.weapon)
-
-    # |Skills|------------------------------------------------------------------------------------------------------
-    Skills.skills_manager(self, entities, level)
-
-    # |Status effects|----------------------------------------------------------------------------------------------
-    # ha ha, Fun go brr
-    Fun.status_manager(self, entities)
-
-    # |Movement Output|---------------------------------------------------------------------------------------------
-    # Make the player move
-    Fun.movement_output(self, level)
-    for e in entities["entities"]:
-        if e == self: continue
-        if self.collision_box.colliderect(e.collision_box):
-            e.vel = Fun.move_with_vel_angle(e.vel, 2, Fun.angle_between(e.collision_box.center, self.pos))
-            if e.team != self.team:
-                Fun.damage_calculation(e, round(abs(self.vel[0]) + abs(self.vel[1])) * 5, "Melee", death_message="Ran over")
-            pass
-    if self.draw_aim_line or self.weapon.laser_sight:
-        entities["background particles"].append(Particles.LineParticle(
-            Fun.move_with_vel_angle(self.pos, 20, self.aim_angle), Fun.BLUE, 1, self.weapon.range-20, self.aim_angle, 2, 0))
-    # Give orders
-    if self.order_builder["Cooldown"] <= 0:
-        if self.order_builder["Current order"]:
-            self.order_builder["Time limit"] -= 1
-            # Write
-            mod = 10
-            pos = [self.pos[0] + 16, self.pos[1] - 48]
-            entities["particles"].append(Particles.FloatingTextType3(pos.copy(), 18, self.order_builder["Current order"], Fun.AMBER, 1))
-            pos[1] += mod
-            for x in [
-                f"{Fun.write_control(self, "Order Hold")}All Teammate",
-                f"{Fun.write_control(self, "Order Follow")}Teammate 1",
-                f"{Fun.write_control(self, "Order Attack")}Teammate 2",
-                f"{Fun.write_control(self, "Order Act Free")}Teammate 3"]:
-                pos[1] += mod
-                entities["particles"].append(Particles.FloatingTextType3(pos.copy(), 18, x, Fun.AMBER, 1))
-            pos[1] += mod
-            entities["particles"].append(Particles.GrowingSquare([pos[0], pos[1], 120, 8], Fun.UI_COLOUR_NEW_BACKDROP, [0, 0], 1))
-            entities["particles"].append(Particles.GrowingSquare([pos[0], pos[1], self.order_builder["Time limit"]//3, 8], Fun.AMBER_LIGHT, [0, 0], 1))
-
-            # Choose who to give the order to
-            if self.order_builder["Allow input"]:
-                if self.input["Order Hold"]:
-                    give_order(self, entities, [1, 2, 3])
-                if self.input["Order Follow"]:
-                    give_order(self, entities, [1])
-                if self.input["Order Attack"]:
-                    give_order(self, entities, [2])
-                if self.input["Order Act Free"]:
-                    give_order(self, entities, [3])
-            elif not (self.input["Order Hold"] or self.input["Order Follow"] or self.input["Order Attack"] or self.input["Order Act Free"]):
-                self.order_builder["Allow input"] = True
-
-            # Reset if time out
-            if self.order_builder["Time limit"] < 0:
-                self.order_builder["Current order"] = False
-                self.order_builder["Cooldown"] = 240
-        else:
-            # Choose the order
-            opt = False
-            if self.input["Order Hold"]:
-                opt = True
-                self.order_builder["Current order"] = "Hold"
-            if self.input["Order Follow"]:
-                opt = True
-                self.order_builder["Current order"] = "Follow"
-            if self.input["Order Attack"]:
-                opt = True
-                self.order_builder["Current order"] = "Attack"
-            if self.input["Order Act Free"]:
-                opt = True
-                self.order_builder["Current order"] = "Freely"
-
-            # Add cooldown
-            if opt:
-
-                self.order_builder["Allow input"] = False
-                self.order_builder["Time limit"] =  120 * 3
-
-    else:
-        self.order_builder["Cooldown"] -= 1
-
-    if self.armour_break:
-        # Need a sound effect
-        self.armour_break = False
-        number_of_particle = 18
-        for particles_to_add in range(360 // number_of_particle):
-            entities["background particles"].append(Particles.RandomParticle2(
-                [self.pos[0], self.pos[1]], Fun.GREEN, 2 * random.random(), random.randint(15, 45),
-                                                        particles_to_add * number_of_particle,
-                size=Fun.get_random_element_from_list([3, 4, 6])))
-
-
-def buggy_act(self, entities, level):
-    vehicle_escort(self, level)
-    angle = self.free_var["Move angle"] + 226 - 180
-    pos = [self.pos[0], self.pos[1] - 16]
-    pos = Fun.move_with_vel_angle(pos, 22.6274, angle)
-    pos = Fun.move_with_vel_angle(pos, 20, self.aim_angle)
-    # |Movement Input|----------------------------------------------------------------------------------------------
-    self.running = False
-    self.walking = False
-
-    max_vel = self.vel_max
-
-    # Handle double speed and slowness status
-    if self.status["Slowness"]:
-        max_vel *= 0.5
-    if self.status["Double speed"]:
-        max_vel *= 2
-
-    # Checks for which direction the player must move
-    # Rework it so that you are not faster when walking in diagonal, this should be fixed now
-    if self.dash_cooldown <= 0:
-        allow_correction = False
-        speed = 0
-        if self.input["Up"]:
-            speed = 1
-            allow_correction = True
-        if self.input["Down"]:
-            speed = -1
-            allow_correction = True
-
-        mod = 0.7
-        angle_type = "Move angle"
-        if self.skills[0].recharge == 0:
-            angle_type = "Target Move angle"
-            mod = 2
-        self.free_var["Move vel"] = abs(self.vel[0]) + abs(self.vel[1])
-
-        # Fun.move_angle_toward_target_angle(real_angle, target_angle, rate)
-        turn_vel = self.free_var["Move vel"] * 0.8
-        if self.free_var["Move vel"] > 0 and turn_vel < 1:
-            turn_vel = 1
-        if turn_vel > 4:
-            turn_vel = 4
-        if self.input["Left"]:
-            self.free_var["Target Move angle"] -= turn_vel
-        if self.input["Right"]:
-            self.free_var["Target Move angle"] += turn_vel
-        self.free_var["Target Move angle"] = Fun.angle_value_limiter(self.free_var["Target Move angle"])
-        self.free_var["Move angle"] = Fun.move_angle_toward_target_angle(self.free_var["Move angle"], self.free_var["Target Move angle"], turn_vel * mod)
-
-        self.vel = Fun.move_with_vel_angle(self.vel, self.speed * speed, self.free_var[angle_type])
-        if not Fun.check_point_in_circle(max_vel, 0, 0, self.vel[0], self.vel[1]) and allow_correction:
-            self.vel = Fun.move_with_vel_angle([0, 0], max_vel * speed, self.free_var[angle_type])
-        self.walking = allow_correction
-    #
-    self.standing_still = False
-    if self.vel == [0, 0]:
-        self.standing_still = True
-    elif self.cutscene_mode:
-        # This makes entities use their walking animation during cutscenes
-        self.walking = True
-
-    # Dash mechanic
-    if self.dash_cooldown <= 0 and not self.standing_still and self.input["Dash"]:
-        # Handle dash here
-        Fun.play_sound("Player dash", modified_volume=0.25)
-        dash_angle = self.free_var["Move angle"]
-        self.dash_cooldown = self.dash_charge_time
-        if self.status["Dash recovery up"] > 0:
-            self.dash_cooldown //= 2
-        self.vel = Fun.move_with_vel_angle(self.vel, self.dash_speed / self.friction * speed, dash_angle)
-        for x in range(4):
-            angle = dash_angle - 15 - 3.25 * 2 + x * 7.5 * 2
-            entities["particles"].append(
-                Particles.RandomParticle2(
-                    Fun.move_with_vel_angle([self.pos[0], self.pos[1]], -4, angle),
-                    Fun.WHITE, 1.5 + random.uniform(0, 2), 24, angle))
-
-        if self.status["No damage"] < self.dash_iframes:
-            self.status["No damage"] += self.dash_iframes
-    self.dash_cooldown -= 1
-
-    # |GunPlay|-----------------------------------------------------------------------------------------------------
-    length = self.weapon.range + 20
-
-    # Draw the lines
-    entities["background particles"].append(Particles.LineParticle(self.pos, Fun.RED, 1, length, self.free_var["Move angle"], 1, 0))
-
-    entities["UI particles"].append(Particles.AimPoint(self.mouse_pos))
-    self.weapon.passive(self, entities, level)
-    if self.no_shoot_state == 0:
-        # Reset variables
-        self.reloading = False
-
-        if self.input["Alt fire"]:
-            self.weapon.alt_fire(self, entities, level)
-
-        # |Main fire|-----------------------------------------------------------------------------------------------
-        if self.input["Shoot"]:
-            if self.weapon.ammo != 0 and self.shot_allowed:
-                # |Main fire|-------------------------------------------------------------------------------------------
-                self.shoot_bullet(entities, level)
-
-                # tell if the trigger was pressed
-                if not self.weapon.full_auto:
-                    self.shot_allowed = False
-            # if the trigger is not pressed and the weapon is not a full auto, allow to shoot for the next trigger press
-            elif self.weapon.ammo == 0 and self.shot_allowed:
-                Fun.play_sound(self.weapon.jamming_sound, "SFX")
-                self.shot_allowed = False
-        else:
-            self.shot_allowed = True
-
-        # |Reload|--------------------------------------------------------------------------------------------------
-        if self.input["Reload"] and self.weapon.ammo_pool > 0:
-            self.no_shoot_state, self.reloading = self.weapon.reload()
-    else:
-        self.no_shoot_state -= 1
-
-    Fun.aim_system(self, self.weapon)
-
-    # |Skills|------------------------------------------------------------------------------------------------------
-    Skills.skills_manager(self, entities, level)
-
-    # |Status effects|----------------------------------------------------------------------------------------------
-    # ha ha, Fun go brr
-    Fun.status_manager(self, entities)
-
-    # |Movement Output|---------------------------------------------------------------------------------------------
-    # Make the player move
-    Fun.movement_output(self, level)
-    for e in entities["entities"]:
-        if e == self: continue
-        if self.collision_box.colliderect(e.collision_box):
-            e.vel = Fun.move_with_vel_angle(e.vel, 2, Fun.angle_between(e.collision_box.center, self.pos))
-            if e.team != self.team:
-                Fun.damage_calculation(e, round(abs(self.vel[0]) + abs(self.vel[1])) * 5, "Melee", death_message="Ran over")
-            pass
-    if self.draw_aim_line or self.weapon.laser_sight:
-        pos = Fun.move_with_vel_angle(self.pos, -24, self.free_var["Move angle"])
-        entities["background particles"].append(Particles.LineParticle(
-            [pos[0], pos[1]-14], Fun.BLUE, 1, self.weapon.range-20,
-            self.aim_angle, 2, 0))
-    # Give orders
-    if self.order_builder["Cooldown"] <= 0:
-        if self.order_builder["Current order"]:
-            self.order_builder["Time limit"] -= 1
-            # Write
-            mod = 10
-            pos = [self.pos[0] + 16, self.pos[1] - 48]
-            entities["particles"].append(Particles.FloatingTextType3(pos.copy(), 18, self.order_builder["Current order"], Fun.AMBER, 1))
-            pos[1] += mod
-            for x in [
-                f"{Fun.write_control(self, "Order Hold")}All Teammate",
-                f"{Fun.write_control(self, "Order Follow")}Teammate 1",
-                f"{Fun.write_control(self, "Order Attack")}Teammate 2",
-                f"{Fun.write_control(self, "Order Act Free")}Teammate 3"]:
-                pos[1] += mod
-                entities["particles"].append(Particles.FloatingTextType3(pos.copy(), 18, x, Fun.AMBER, 1))
-            pos[1] += mod
-            entities["particles"].append(Particles.GrowingSquare([pos[0], pos[1], 120, 8], Fun.UI_COLOUR_NEW_BACKDROP, [0, 0], 1))
-            entities["particles"].append(Particles.GrowingSquare([pos[0], pos[1], self.order_builder["Time limit"]//3, 8], Fun.AMBER_LIGHT, [0, 0], 1))
-
-            # Choose who to give the order to
-            if self.order_builder["Allow input"]:
-                if self.input["Order Hold"]:
-                    give_order(self, entities, [1, 2, 3])
-                if self.input["Order Follow"]:
-                    give_order(self, entities, [1])
-                if self.input["Order Attack"]:
-                    give_order(self, entities, [2])
-                if self.input["Order Act Free"]:
-                    give_order(self, entities, [3])
-            elif not (self.input["Order Hold"] or self.input["Order Follow"] or self.input["Order Attack"] or self.input["Order Act Free"]):
-                self.order_builder["Allow input"] = True
-
-            # Reset if time out
-            if self.order_builder["Time limit"] < 0:
-                self.order_builder["Current order"] = False
-                self.order_builder["Cooldown"] = 240
-        else:
-            # Choose the order
-            opt = False
-            if self.input["Order Hold"]:
-                opt = True
-                self.order_builder["Current order"] = "Hold"
-            if self.input["Order Follow"]:
-                opt = True
-                self.order_builder["Current order"] = "Follow"
-            if self.input["Order Attack"]:
-                opt = True
-                self.order_builder["Current order"] = "Attack"
-            if self.input["Order Act Free"]:
-                opt = True
-                self.order_builder["Current order"] = "Freely"
-
-            # Add cooldown
-            if opt:
-
-                self.order_builder["Allow input"] = False
-                self.order_builder["Time limit"] =  120 * 3
-
-    else:
-        self.order_builder["Cooldown"] -= 1
-
-    if self.armour_break:
-        # Need a sound effect
-        self.armour_break = False
-        number_of_particle = 18
-        for particles_to_add in range(360 // number_of_particle):
-            entities["background particles"].append(Particles.RandomParticle2(
-                [self.pos[0], self.pos[1]], Fun.GREEN, 2 * random.random(), random.randint(15, 45),
-                                                        particles_to_add * number_of_particle,
-                size=Fun.get_random_element_from_list([3, 4, 6])))
-
-
-# Keyboard input
-def player_input_keyboard(self, entities, level):
-    Fun.keyboard_mouse_input(self, pg.key.get_pressed(), pg.mouse.get_pressed(3))
-
-    width, height = pg.display.get_surface().get_size()
-    slide_width, slide_height = Fun.FRAME_MAX_SIZE  # 1.4
-    if width != slide_width or height != slide_height:
-        if width > height * 1.4:
-            slide_width = slide_width * height / slide_height
-            slide_height = height
-        elif width < height:
-            slide_height = slide_height * width / slide_width
-            slide_width = width
-        if width < height * 1.4:
-            slide_width = slide_width * height / slide_height
-            slide_height = height
-        elif width > height:
-            slide_height = slide_height * width / slide_width
-            slide_width = width
-    if slide_width > width or slide_height > height:
-        if width > height * 1.4:
-            slide_width = slide_width * height / slide_height
-            slide_height = height
-        elif width < height * 1.4:
-            slide_height = slide_height * width / slide_width
-            slide_width = width
-    mouse_pos = pg.mouse.get_pos()
-    render_rect = (width // 2 - slide_width // 2, height // 2 - slide_height // 2, slide_width, slide_height)
-    self.mouse_pos = [(mouse_pos[0] - render_rect[0]) * (Fun.FRAME_MAX_SIZE[0] / slide_width) - entities["scrolling"][0],
-                      (mouse_pos[1] - render_rect[1]) * (Fun.FRAME_MAX_SIZE[1] / slide_height) - entities["scrolling"][1]]
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-    Fun.stunned_manager(self)
-
-
-# Controller input
-def player_input_controller_1(self, entities, level):
-    Fun.controller_input(self, gamepad_index=0)
-    Fun.stunned_manager(self)
-
-
-def player_input_controller_2(self, entities, level):
-    Fun.controller_input(self, gamepad_index=1)
-    Fun.stunned_manager(self)
-
-
-def player_input_controller_3(self, entities, level):
-    Fun.controller_input(self, gamepad_index=2)
-    Fun.stunned_manager(self)
-
-
-def player_input_controller_4(self, entities, level):
-    Fun.controller_input(self, gamepad_index=3)
-    Fun.stunned_manager(self)
-
-
-def give_order(self, entities, targets):
-    self.order_builder["Cooldown"] = 240
-    allies_found = 0
-    for x in entities["entities"]:
-        # Make sure to not give the order to an enemy
-        if x.team != self.team:
-            continue
-        # or the player 1
-        if x == self:
-            continue
-        allies_found += 1
-        # Check if the ally is the intended target
-        if allies_found in targets:
-            x.ai_state = self.order_builder["Current order"]
-            # Special case for follow
-            if self.order_builder["Current order"] == "Follow":
-                x.free_var["Ally waypoint"] = self
-            # Special case for hold
-            if self.order_builder["Current order"] == "Hold":
-                x.free_var["Ally waypoint"] = self.mouse_pos.copy()
-    self.order_builder["Current order"] = False
-
-
-# |Pathfinding|---------------------------------------------------------------------------------------------------------
 def universal_pathfinding(self, level, pos):
     if not Fun.wall_between(self.pos, pos, level):
         return False
@@ -1138,7 +430,6 @@ def pathfinding(self, level):
     return points[Fun.entity_path_making(self, current_location, end_point, connections, points, [])[0]]
 
 
-# |General use|---------------------------------------------------------------------------------------------------------
 def start_up_lag_handler(self, target_time, key="Startup lag"):
     # This little thing make it way easier to have startup lag
     if self.free_var[key] >= target_time:
@@ -1160,382 +451,7 @@ def entity_dodge_bullets(self, entities, look_range, bullets_to_dodge=(Bullets.B
         self.input["Up"] = self.pos[1] < dodge_pos[1]
 
 
-# Component
-def entity_get_aim_move_target(self, target):
-    aim_target = self.target.pos.copy()
-    self.angle = Fun.angle_between(aim_target, self.pos)
-    return aim_target, target.copy(), Fun.distance_between(target, self.pos)
-
-
-def entity_maintain_weapon_range(self, og_dist, move_target, get_closer, get_away=64):
-    if og_dist > get_closer:
-        self.input["Right"] = self.pos[0] < move_target[0]
-        self.input["Left"] = self.pos[0] > move_target[0]
-        self.input["Down"] = self.pos[1] < move_target[1]
-        self.input["Up"] = self.pos[1] > move_target[1]
-
-    if og_dist < get_away:
-        self.input["Right"] = self.pos[0] > move_target[0]
-        self.input["Left"] = self.pos[0] < move_target[0]
-        self.input["Down"] = self.pos[1] > move_target[1]
-        self.input["Up"] = self.pos[1] < move_target[1]
-
-
-def entity_shoot_no_startup_lag(self, og_dist, engage_range):
-    self.input["Shoot"] = self.weapon.ammo > 0 and og_dist < engage_range
-
-
-def entity_shoot_with_startup_lag(self, og_dist, engage_range):
-    if self.weapon.ammo > 0 and og_dist < engage_range and self.free_var['Startup lag'] == 0 and self.status["Stunned"] == 0:
-        self.free_var['Startup lag'] += 1
-
-
-def entity_shoot_startup_handler(self):
-    if self.free_var['Startup lag'] > 0:
-        self.draw_aim_line = True
-        self.input["Shoot"] = start_up_lag_handler(self, self.free_var["Startup time"])
-        if not self.target:
-            self.free_var['Startup lag'] = 0
-
-
-def entity_shoot_melee(self, og_dist, engage_range):
-    pass
-
-
-def entity_spread_apart(self, entities, spread_dist=32):
-    for e in entities["entities"]:
-        if 0 < Fun.distance_between(e.pos, self.pos) < spread_dist:
-            self.input["Right"] = self.pos[0] > e.pos[0]
-            self.input["Left"] = self.pos[0] < e.pos[0]
-            self.input["Down"] = self.pos[1] > e.pos[1]
-            self.input["Up"] = self.pos[1] < e.pos[1]
-            break
-
-
-def entity_escort_ally(self, entities, level, escort_list=("VIP", "Shock"), escort_dist=48, look_dist=512):
-    for e in entities["entities"]:
-        if e.name not in escort_list:
-            continue
-        if Fun.wall_between(e.pos, self.pos, level):
-            continue
-        if look_dist > Fun.distance_between(e.pos, self.pos) > escort_dist:
-            self.input["Right"] = self.pos[0] < e.pos[0]
-            self.input["Left"] = self.pos[0] > e.pos[0]
-            self.input["Down"] = self.pos[1] < e.pos[1]
-            self.input["Up"] = self.pos[1] > e.pos[1]
-        return
-
-
-def entity_dash_when_targeted(self, no_shoot_threshold=0, threshold=0.3):
-    if self != self.target.target:
-        return
-    self.input["Dash"] = self.target.no_shoot_state <= no_shoot_threshold and random.random() < threshold
-
-
-def entity_move_toward_point(self, move_target, dist):
-    if dist < Fun.distance_between(self.pos, move_target):
-        self.input["Right"] = self.pos[0] < move_target[0]
-        self.input["Left"] = self.pos[0] > move_target[0]
-        self.input["Down"] = self.pos[1] < move_target[1]
-        self.input["Up"] = self.pos[1] > move_target[1]
-
-
-def entity_get_enemy_count(self, entities, goal=10, dist=256, entity_type="entities"):
-    enemy_count = 0
-    for e in entities[entity_type]:
-        if e.team == self.team:
-            continue
-        if Fun.distance_between(e.pos, self.pos) < dist:
-            enemy_count += 1
-            if enemy_count > goal:
-                break
-    return enemy_count > goal
-
-
-def entity_get_ally_count(self, entities, goal=10, dist=256, entity_type="entities"):
-    enemy_count = 0
-    for e in entities[entity_type]:
-        if e.team != self.team:
-            continue
-        if Fun.distance_between(e.pos, self.pos) < dist:
-            enemy_count += 1
-            if enemy_count > goal:
-                break
-    return enemy_count > goal
-
-
-def entity_find_main_group(self, entities, dist=128):
-    allies = []
-    for count, e in enumerate(entities["entities"]):
-        if count > 3: break
-        if e.team != self.team: continue
-        allies.append(e)
-
-    main_group = self.pos.copy()
-    control_num = 0
-    for a in allies:
-        if not a.is_player: continue
-        temp = 0
-        for aa in allies:
-            if Fun.distance_between(a.pos, aa.pos) < dist:
-                temp += 1
-        if control_num < temp:
-            main_group = a.pos.copy()
-
-    return main_group
-
-
-def entity_find_teammate(self, entities, target="Sovereign", check_limit=3):
-    for count, e in enumerate(entities["entities"]):
-        if count > check_limit: break
-        if e.team != self.team: continue
-        if e.name != target: continue
-        return e.pos.copy()
-    return False
-
-
-def fortress_move_toward_point(self, move_target, dist):
-    if dist < Fun.distance_between(self.pos, move_target):
-        angle = Fun.angle_between(move_target, self.pos)
-        self.input["Right"] = self.free_var["Move angle"] < angle
-        self.input["Left"] = self.free_var["Move angle"] > angle
-
-        if not -(180 - 4) + angle < self.free_var["Move angle"] < 180 - 4 + angle:
-            self.input["Right"] = self.free_var["Move angle"] > angle
-            self.input["Left"] = self.free_var["Move angle"] < angle
-
-        self.input["Down"] = False
-        mod = [5, 6, 7, 8, 10][self.driving]
-        self.input["Up"] = angle - mod < self.free_var["Move angle"] < angle + mod
-
-
-def fortress_move_away_point(self, move_target, dist):
-    if dist > Fun.distance_between(self.pos, move_target):
-        angle = Fun.angle_between(move_target, self.pos)
-        self.input["Right"] = self.free_var["Move angle"] < angle
-        self.input["Left"] = self.free_var["Move angle"] > angle
-
-        if not -(180 - 4) + angle < self.free_var["Move angle"] < 180 - 4 + angle:
-            self.input["Right"] = self.free_var["Move angle"] > angle
-            self.input["Left"] = self.free_var["Move angle"] < angle
-
-        self.input["Down"] = angle - 12 < self.free_var["Move angle"] < angle + 12
-        self.input["Up"] = False
-        # self.input["Up"] = angle - mod < self.free_var["Move angle"] < angle + mod
-
-
-def buggy_move_toward_point(self, move_target, dist):
-    if dist < Fun.distance_between(self.pos, move_target):
-        angle = Fun.angle_between(move_target, self.pos)
-        self.input["Right"] = self.free_var["Move angle"] < angle
-        self.input["Left"] = self.free_var["Move angle"] > angle
-
-        if not -(180 - 4) + angle < self.free_var["Move angle"] < 180 - 4 + angle:
-            self.input["Right"] = self.free_var["Move angle"] > angle
-            self.input["Left"] = self.free_var["Move angle"] < angle
-
-        self.input["Down"] = False
-        mod = [8, 10, 12, 14, 16][self.driving]
-        self.input["Up"] = angle - mod < self.free_var["Move angle"] < angle + mod or (self.input["Right"] or self.input["Left"]) and self.time % 3 != 0
-
-
-def buggy_move_away_point(self, move_target, dist):
-    if dist > Fun.distance_between(self.pos, move_target):
-        angle = Fun.angle_between(move_target, self.pos)
-        self.input["Left"] = self.free_var["Move angle"] < angle
-        self.input["Right"] = self.free_var["Move angle"] > angle
-
-        if not -(180 - 4) + angle < self.free_var["Move angle"] < 180 - 4 + angle:
-            self.input["Left"] = self.free_var["Move angle"] > angle
-            self.input["Right"] = self.free_var["Move angle"] < angle
-
-        self.input["Up"] = False
-        mod = [8, 10, 12, 14, 16][self.driving]
-        self.input["Down"] = angle - mod < self.free_var["Move angle"] < angle + mod or (self.input["Right"] or self.input["Left"]) and self.time % 3 != 0
-
-
-# |Targeting|-----------------------------------------------------------------------------------------------------------
-def entity_target_detection(self, entities, level):
-    # Used by the enemy AI able to find targets
-    # Might make them capable of patrolling
-
-    if self.time % 240 == 0 or not self.target:
-        self.is_target = False
-        self.target = False
-        target_check = self.targeting_range
-        # I might have to remake the whole targeting system
-        control_agro = -25
-        for p in entities["entities"]:
-            if p.health <= 0 or self.team == p.team:
-                continue
-            if control_agro > p.agro:
-                continue
-
-            if not Fun.wall_between(self.pos, p.pos, level) or self.wall_hack or p.status["Visible"] > 0:
-                if p.status["Stealth"] > 0 and not p.status["Visible"] > 0:
-                    continue
-                detection_modifier = p.stealth_mod * self.stealth_counter
-
-                if detection_modifier > 1: detection_modifier = 1
-                if p.status["Visible"] > 0: detection_modifier = 1
-
-                # Check if the potential target is in detection range
-                if Fun.check_point_in_cone(target_check // 6 * detection_modifier,
-                        self.pos[0], self.pos[1], p.pos[0], p.pos[1],
-                        self.angle, self.targeting_angle * 3) or \
-                        Fun.check_point_in_cone(target_check * detection_modifier,
-                                            self.pos[0], self.pos[1], p.pos[0], p.pos[1],
-                                            self.angle, self.targeting_angle)\
-                        or Fun.check_point_in_circle(target_check // 10, self.pos[0], self.pos[1], p.pos[0], p.pos[1]):
-                    self.target = p
-                    self.is_target = True
-                    control_agro = p.agro
-
-        # Check for sounds
-        if not self.target:
-            for sound in entities["sounds"]:
-                if self.team == sound.source:
-                    continue
-                if Fun.check_point_in_circle(sound.radius, sound.pos[0], sound.pos[1], self.pos[0], self.pos[1]):
-                    self.angle = Fun.angle_between(sound.pos, self.pos)
-    target_angle = 0
-    target_pos = False
-    wall_in = False
-
-    if self.target:
-        self.target.is_targeted = True
-        # If the target is dead, reset targeting
-        if self.target.health <= 0:
-            self.target = False
-            return target_pos, target_angle, wall_in
-
-        target_angle = self.target.angle
-        target_pos = self.target.pos.copy()
-        # Pathfinding
-        # results = pathfinding(self, level)
-        results = universal_pathfinding(self, level, target_pos)
-        if results:
-            # entities["particles"].append(Fun.GrowingCircle(results, Fun.WHITE, 0, 1, 32, 8))
-            target_pos = results
-            wall_in = True
-
-    return target_pos, target_angle, wall_in
-
-
-def entity_target_detection_healer(self, entities, level):
-    # Used by the enemy AI able to find targets
-    # Might make them capable of patrolling
-
-    if self.time % 240 == 0 or not self.target:
-        self.is_target = False
-        self.target = False
-        target_check = self.targeting_range
-        # I might have to remake the whole targeting system
-        control_health = 1
-        for p in entities["entities"]:
-            if self.team != p.team and p != self:
-                continue
-            if control_health < p.health / p.max_health:
-                continue
-            if not Fun.wall_between(self.pos, p.pos, level) or self.wall_hack:
-
-                # Check if the potential target is in detection range
-                if Fun.check_point_in_cone(target_check // 6,
-                        self.pos[0], self.pos[1], p.pos[0], p.pos[1], self.angle, self.targeting_angle * 3) or \
-                        Fun.check_point_in_cone(target_check,
-                                            self.pos[0], self.pos[1], p.pos[0], p.pos[1],
-                                            self.angle, self.targeting_angle)\
-                        or Fun.check_point_in_circle(target_check // 10, self.pos[0], self.pos[1], p.pos[0], p.pos[1]):
-                    self.target = p
-                    self.is_target = True
-                    control_health = p.health / p.max_health
-    target_angle = 0
-    target_pos = False
-    wall_in = False
-
-    if self.target:
-        # If the target is dead, reset targeting
-        if self.target.health <= 0:
-            self.target = False
-            return target_pos, target_angle, wall_in
-
-        target_angle = self.target.angle
-        target_pos = self.target.pos.copy()
-        # Pathfinding
-        # results = pathfinding(self, level)
-        results = universal_pathfinding(self, level, target_pos)
-        if results:
-            # entities["particles"].append(Fun.GrowingCircle(results, Fun.WHITE, 0, 1, 32, 8))
-            target_pos = results
-            wall_in = True
-
-    return target_pos, target_angle, wall_in
-
-
-def entity_target_simple(self, entities, level):
-    # Used by the enemy AI able to find targets
-    # Might make them capable of patrolling
-
-    if self.time % 240 == 0 or not self.target:
-        self.is_target = False
-        self.target = False
-        target_check = self.targeting_range
-        # I might have to remake the whole targeting system
-        control_agro = -25
-        for p in entities["entities"]:
-            if p.health <= 0 or self.team == p.team:
-                continue
-            if control_agro > p.agro:
-                continue
-
-            if p.status["Stealth"] > 0 and not p.status["Visible"] > 0:
-                continue
-            detection_modifier = p.stealth_mod * self.stealth_counter
-
-            if detection_modifier > 1: detection_modifier = 1
-            if p.status["Visible"] > 0: detection_modifier = 1
-
-            # Check if the potential target is in detection range
-            if Fun.check_point_in_cone(target_check // 6 * detection_modifier,
-                    self.pos[0], self.pos[1], p.pos[0], p.pos[1],
-                    self.angle, self.targeting_angle * 3) or \
-                    Fun.check_point_in_cone(target_check * detection_modifier,
-                                        self.pos[0], self.pos[1], p.pos[0], p.pos[1],
-                                        self.angle, self.targeting_angle)\
-                    or Fun.check_point_in_circle(target_check // 10, self.pos[0], self.pos[1], p.pos[0], p.pos[1]):
-                self.target = p
-                self.is_target = True
-                control_agro = p.agro
-
-        # Check for sounds
-        if not self.target:
-            for sound in entities["sounds"]:
-                if self.team == sound.source:
-                    continue
-                if Fun.check_point_in_circle(sound.radius, sound.pos[0], sound.pos[1], self.pos[0], self.pos[1]):
-                    self.angle = Fun.angle_between(sound.pos, self.pos)
-    target_angle = 0
-    target_pos = False
-    wall_in = False
-
-    if self.target:
-        self.target.is_targeted = True
-        # If the target is dead, reset targeting
-        if self.target.health <= 0:
-            self.target = False
-            return target_pos, target_angle, wall_in
-
-        target_angle = self.target.angle
-        target_pos = self.target.pos.copy()
-        # Pathfinding
-        # results = pathfinding(self, level)
-        results = universal_pathfinding(self, level, target_pos)
-        if results:
-            # entities["particles"].append(Fun.GrowingCircle(results, Fun.WHITE, 0, 1, 32, 8))
-            target_pos = results
-            wall_in = True
-    return target_pos, target_angle, wall_in
-
+# print([p for p in dir(Entity)])
 
 def agro_system(self):
     if self.did_agro_raise > 0:
@@ -1544,713 +460,19 @@ def agro_system(self):
         self.agro -= 1
 
 
-# |Ally fire control|---------------------------------------------------------------------------------------------------
-def basic_fire_control(self, entities, level, target, wall_in):
-    self.input["Shoot"] = random.randint(0, self.weapon.fire_rate) == 0 and \
-                          Fun.check_point_in_circle_new(self.weapon.range * 0.8, self.pos, target) and \
-                          not wall_in
-    # Reloading
-    self.input["Reload"] = self.weapon.ammo == 0 and self.weapon.ammo_pool > 0
-
-
-def lord_fire_control(self, entities, level, target, wall_in):
-    basic_fire_control(self, entities, level, target, wall_in)
-
-    self.input["Skill 2"] = entity_get_enemy_count(self, entities, goal=5, dist=256) and \
-                            self.ai_state in ["Hold", "Attack", "Freely"]
-    self.input["Skill 1"] = Fun.distance_between(target, self.pos) < 128
-
-
-def gunblade_fire_control(self, entities, level, target, wall_in):
-    if not melee_fire_control(self, entities, level, target, wall_in):
-        self.input["Reload"] = self.weapon.ammo == 0 and self.weapon.ammo_pool > 0
-        entity_shoot_with_startup_lag(self, Fun.distance_between(target, self.pos), 7 * 30)
-        if self.free_var['Startup lag'] > 0:
-            # self.draw_aim_line = self.weapon.laser_sight
-            self.input["Alt fire"] = True
-            self.input["Shoot"] = start_up_lag_handler(self, self.free_var["Startup time"])
-        return
-    self.input["Skill 1"] = True
-    self.input["Skill 2"] = entity_get_enemy_count(self, entities, goal=5, dist=256)
-
-
-def emperor_gun_fire_control(self, entities, level, target, wall_in):
-    if not basic_fire_control(self, entities, level, target, wall_in):
-        self.input["Reload"] = self.weapon.ammo == 0 and self.weapon.ammo_pool > 0
-        entity_shoot_with_startup_lag(self, Fun.distance_between(target, self.pos), 7 * 30)
-        if self.free_var['Startup lag'] > 0:
-            # self.draw_aim_line = self.weapon.laser_sight
-            self.input["Alt fire"] = True
-            self.input["Shoot"] = start_up_lag_handler(self, self.free_var["Startup time"])
-        return
-    self.input["Skill 1"] = True
-    self.input["Skill 2"] = entity_get_enemy_count(self, entities, goal=5, dist=256)
-
-
-def wizard_fire_control(self, entities, level, target, wall_in):
-    basic_fire_control(self, entities, level, target, wall_in)
-
-    skill_1 = self.skills[0]
-    if skill_1.recharge >= skill_1.recharge_max:
-        self.input["Shoot"] = False
-        self.input["Skill 1"] = True
-        self.input["Interact"] = random.random() < 0.25
-
-
-def wizard_radio_fire_control(self, entities, level, target, wall_in):
-    basic_fire_control(self, entities, level, target, wall_in)
-    self.input["Alt fire"] = self.input["Shoot"]
-    # Add an option to switch ammo type?
-
-    skill_1 = self.skills[0]
-    if skill_1.recharge >= skill_1.recharge_max:
-        self.input["Shoot"] = False
-        self.input["Skill 1"] = True
-        self.input["Interact"] = random.random() < 0.25
-
-
-def mortar_fire_control(self, entities, level, target, wall_in):
-    basic_fire_control(self, entities, level, target, wall_in)
-    self.input["Alt fire"] = self.input["Shoot"]
-
-
-def condor_fire_control(self, entities, level, target, wall_in):
-    basic_fire_control(self, entities, level, target, wall_in)
-    self.input["Skill 1"] = Fun.distance_between(target, self.pos) < 128 and self.target.armour > 0
-
-
-def condor_shotgun_fire_control(self, entities, level, target, wall_in):
-    basic_fire_control(self, entities, level, target, wall_in)
-    self.input["Alt fire"] = Fun.distance_between(target, self.pos) < 96
-    self.input["Skill 1"] = Fun.distance_between(target, self.pos) < 128 and self.target.armour > 0
-
-
-def melee_fire_control(self, entities, level, target, wall_in):
-    if Fun.distance_between(target, self.pos) <= self.weapon.range:
-        # combo_stage = self.free_var[self.weapon.name]["Combo stage"]
-        try:
-            basic_thres = self.free_var[self.weapon.name]["basic threshold"]
-            if type(basic_thres) == list:
-                basic_thres = basic_thres[self.free_var[self.weapon.name]["Combo stage"]]
-            self.input["Shoot"] = self.free_var[self.weapon.name]["Press time"] < basic_thres  # - 10 * combo_stage
-        except KeyError:
-            return False
-        return True
-    return False
-
-
-def melee_fire_control_no_stopping(self, entities, level, target, wall_in):
-    try:
-        if Fun.distance_between(target, self.pos) <= self.weapon.range or self.free_var[self.weapon.name]["Press time"] > 0:
-        # combo_stage = self.free_var[self.weapon.name]["Combo stage"]
-            basic_thres = self.free_var[self.weapon.name]["basic threshold"]
-            if type(basic_thres) == list:
-                basic_thres = basic_thres[self.free_var[self.weapon.name]["Combo stage"]]
-            self.input["Shoot"] = self.free_var[self.weapon.name]["Press time"] < basic_thres # or self.free_var[f"{self.weapon.name}"]["Press time"] > 0 # - 10 * combo_stage
-
-            return True
-        return False
-    except KeyError:
-        return False
-
-
-def chain_axe_fire_control(self, entities, level, target, wall_in):
-    dist = Fun.distance_between(target, self.pos)
-    if dist <= 128:
-        self.input["Shoot"] = self.weapon.free_var["Press time"] < dist
-    else:
-        # smoke screen when he's targeted and not in range to attack
-        allow = False
-        for e in entities["entities"]:
-            if e.target != self:
-                continue
-            allow = True
-            break
-        self.input["Skill 2"] = allow
-
-
-def hook_swords_fire_control(self, entities, level, target, wall_in):
-    dist = Fun.distance_between(target, self.pos)
-    melee_fire_control(self, entities, level, target, wall_in)
-    if not dist <= 128:
-        # smoke screen when he's targeted and not in range to attack
-        allow = False
-        for e in entities["entities"]:
-            if e.target != self:
-                continue
-            allow = True
-            break
-        self.input["Skill 2"] = allow
-
-
-def gun_fu_fire_control(self, entities, level, target, wall_in):
-    dist = Fun.distance_between(target, self.pos)
-    if dist <= self.weapon.range:
-        self.input["Shoot"] = self.time % self.weapon.fire_rate * 3 == 0
-        self.input["Alt fire"] = dist <= 128
-    else:
-        # smoke screen when he's targeted and not in range to attack
-        allow = False
-        for e in entities["entities"]:
-            if e.target != self:
-                continue
-            allow = True
-            break
-        self.input["Skill 2"] = allow
-
-
-def medic_rifle_fire_control(self, entities, level, target, wall_in):
-    if self.target.health < self.target.max_health - self.weapon.bullet_info[3]:
-        self.input["Shoot"] = random.randint(0, self.weapon.fire_rate) == 0 and \
-                              Fun.check_point_in_circle_new(self.weapon.range * 0.33, self.pos, target) and \
-                              not wall_in
-    # Reloading
-    self.input["Reload"] = self.weapon.ammo == 0 and self.weapon.ammo_pool > 0
-
-
-def stretcher_fire_control(self, entities, level, target, wall_in):
-    self.input["Shoot"] = Fun.check_point_in_circle_new(self.weapon.range * 1.1, self.pos, target)
-    # Reloading
-    # self.input["Reload"] = self.weapon.ammo == 0 and self.weapon.ammo_pool > 0
-
-
-def shield_generator_fire_control(self, entities, level, target, wall_in):
-    self.input["Shoot"] = random.randint(0, self.weapon.fire_rate) == 0 and \
-                          Fun.check_point_in_circle_new(self.weapon.range * 0.8, self.pos, target) and \
-                          not wall_in
-    # Reloading
-    # self.input["Reload"] = self.weapon.ammo == 0 and self.weapon.ammo_pool > 0
-
-
-def war_and_peace_fire_control(self, entities, level, target, wall_in):
-    self.input["Shoot"] = random.randint(0, self.weapon.fire_rate) == 0 and \
-                          Fun.check_point_in_circle_new(self.weapon.range, self.pos, target) and \
-                          not wall_in
-    self.input["Alt fire"] = Fun.check_point_in_circle_new(self.weapon.range * 1.2, self.pos, target)
-    # Reloading
-    self.input["Reload"] = self.weapon.ammo == 0 and self.weapon.ammo_pool > 0
-
-
-def cutlass_fire_control(self, entities, level, target, wall_in):
-    if not melee_fire_control(self, entities, level, target, wall_in):
-        self.input["Reload"] = self.weapon.ammo == 0 and self.weapon.ammo_pool > 0
-        entity_shoot_with_startup_lag(self, Fun.distance_between(target, self.pos), 6 * 80)
-        if self.free_var['Startup lag'] > 0:
-            # self.draw_aim_line = self.weapon.laser_sight
-            self.input["Alt fire"] = True
-            self.input["Shoot"] = start_up_lag_handler(self, self.free_var["Startup time"])
-    self.input["Skill 1"] = True
-    self.input["Skill 2"] = entity_get_enemy_count(self, entities, goal=5, dist=256)
-
-
-def vivianne_fire_control(self, entities, level, target, wall_in):
-    self.input["Shoot"] = random.randint(0, self.weapon.fire_rate) == 0 and \
-                          Fun.check_point_in_circle_new(self.weapon.range * 0.8, self.pos, target) and \
-                          not wall_in
-    # Reloading
-    self.input["Reload"] = self.weapon.ammo == 0 and self.weapon.ammo_pool > 0
-    self.input["Skill 1"] = entity_get_enemy_count(self, entities, goal=2, dist=512) and random.random() < 0.5
-    self.input["Skill 2"] = not self.input["Skill 1"]
-
-
-def vivianne_melee_fire_control(self, entities, level, target, wall_in):
-    melee_fire_control(self, entities, level, target, wall_in)
-    self.input["Skill 1"] = entity_get_enemy_count(self, entities, goal=2, dist=512) and random.random() < 0.5
-    self.input["Skill 2"] = not self.input["Skill 1"]
-
-
-def c4_fire_control(self, entities, level, target, wall_in):
-    self.input["Shoot"] = random.randint(0, self.weapon.fire_rate*8) == 0 and \
-                          Fun.check_point_in_circle_new(self.weapon.range * 0.8, self.pos, target) and \
-                          not wall_in
-    # Reloading
-    self.input["Reload"] = self.weapon.ammo == Fun.get_random_element_from_list([7, 4, 0]) and self.weapon.ammo_pool > 0
-
-
-def fortress_fire_control(self, entities, level, target, wall_in):
-    basic_fire_control(self, entities, level, target, wall_in)
-    if self.driving == 4:
-        if Fun.distance_between(self.pos, target) < 128:
-            self.input["Dash"] = self.angle - 9 < self.free_var["Move angle"] < self.angle + 9
-
-
-def buggy_fire_control(self, entities, level, target, wall_in):
-    self.input["Shoot"] = random.randint(0, self.weapon.fire_rate) == 0 and \
-                          Fun.check_point_in_cone(
-                              self.weapon.range * 0.8, self.pos[0], self.pos[1],
-                              target[0], target[1], self.free_var["Move angle"], 30) and \
-                          not wall_in
-    # Reloading
-    self.input["Reload"] = self.weapon.ammo == 0 and self.weapon.ammo_pool > 0
-    if self.driving == 4:
-        if Fun.distance_between(self.pos, target) < 128:
-            self.input["Dash"] = self.angle - 9 < self.free_var["Move angle"] < self.angle + 9
-
-
-ALLY_FIRE_CONTROL = {
-    "Lord": {
-        "Saloum Mk-2": lord_fire_control,
-        "GMG-04B": lord_fire_control,
-        "Big Iron": lord_fire_control},
-    "Emperor": {
-        "GunBlade": gunblade_fire_control,
-        "Corrine's Old Rifle": emperor_gun_fire_control,
-        "Oversized stun baton": gunblade_fire_control},
-    "Wizard": {
-        "Jeanne's Family Shotgun": wizard_fire_control,
-        "Custom Mk18 Laser cutter": wizard_fire_control,
-        "Crippled Laddie FCS Radio": wizard_radio_fire_control},
-    "Sovereign": {
-        "St-Maurice": basic_fire_control,
-        "St-Laurent Gen 1": basic_fire_control,
-        "Mk16 Flare Mortar": mortar_fire_control},
-    "Duke": {
-        "Chain Axe": chain_axe_fire_control,
-        "Hook Swords": hook_swords_fire_control,
-        "Gun and Ballistic Knife": gun_fu_fire_control},
-    "Jester": {
-        "Epicurean Medic Rifle": medic_rifle_fire_control,
-        "Nihilist Stretcher": stretcher_fire_control,
-        "Stoic Shield generator": shield_generator_fire_control},
-    "Condor": {
-        "Type 41 SMG": condor_fire_control,
-        "Type 23 Shotgun": condor_shotgun_fire_control, # Give a way to use the shield later.
-        "Type 47 Rifle": condor_fire_control},
-
-    "Curtis": {
-        "Standard Shotgun": basic_fire_control,
-        "War and Peace": war_and_peace_fire_control,
-        "Hunk of Steel": melee_fire_control},
-
-    "Doppelgänger": {
-        "Standard Shotgun": basic_fire_control,
-        "War and Peace": war_and_peace_fire_control,
-        "Hunk of Steel": melee_fire_control},
-    "Lawrence": {
-        "Lawrence's Cutlass & Flintlock": cutlass_fire_control,
-        "Captain's Axe & Blunderbuss": cutlass_fire_control,
-        "Musket .360": cutlass_fire_control},
-    "Mark": {
-        "Mark's Real Rifle": basic_fire_control,
-        "Type 30 Rifle": basic_fire_control,
-        "C4": c4_fire_control},
-    "Vivianne": {
-        "Vivianne's Rifle": vivianne_fire_control,
-        "Vivianne's Shotgun": vivianne_fire_control,
-        "Vivianne's Leg": vivianne_melee_fire_control},
-
-    "Fortress": {"Fortress Machine Gun": fortress_fire_control},
-    "Sand Buggy": {"Buggy Gun": buggy_fire_control},
-}
-
-
-# |Ally Skill Control|--------------------------------------------------------------------------------------------------
-def basic_skill_control(self, entities, level):
-    pass
-
-
-def wizard_skill_control(self, entities, level):
-    lord_in_beast_mode = False
-    enemy_count = 0
-    for e in entities["entities"]:
-        if e.team == self.team:
-            if e.name == "Lord":
-                if e.skills[1].active:
-                    lord_in_beast_mode = True
-                    break
-            continue
-        if Fun.distance_between(e.pos, self.pos) < 512:
-            enemy_count += 1
-            if enemy_count > 10:
-                break
-
-    self.input["Skill 2"] = lord_in_beast_mode or enemy_count > 10
-
-
-def sovereign_skill_control(self, entities, level):
-    allow_skill_1 = True
-    for e in entities["entities"]:
-        if e.target == self:
-            allow_skill_1 = False
-            break
-
-    self.input["Skill 1"] = self.reloading and allow_skill_1
-    self.input["Skill 2"] = not self.target
-
-
-def duke_skill_control(self, entities, level):
-    # tail swipe when there multiple bullets around the area of effect,
-    self.input["Skill 1"] = entity_get_enemy_count(self, entities, goal=2, dist=64, entity_type="bullets")
-
-
-def jester_skill_control(self, entities, level):
-    enemies_around = entity_get_enemy_count(self, entities, goal=0, dist=128, entity_type="entities")
-
-    allow_discharge = "Surge Protection" in self.free_var or not entity_get_ally_count(self, entities, goal=1, dist=128, entity_type="entities")
-    self.input["Skill 1"] = allow_discharge and enemies_around
-    self.input["Skill 2"] = enemies_around
-
-
-def condor_skill_control(self, entities, level):
-    self.input["Skill 2"] = self.health <= self.max_health * 0.075
-
-
-def curtis_skill_control(self, entities, level):
-    # tail swipe when there multiple bullets around the area of effect,
-    self.input["Skill 1"] = entity_get_enemy_count(self, entities, goal=0, dist=80, entity_type="bullets")
-
-
-def mark_skill_control(self, entities, level):
-    allow_skill_1 = False
-    for e in entities["entities"]:
-        if e.target == self:
-            allow_skill_1 = True
-            break
-
-    self.input["Skill 1"] = not self.target
-    self.input["Skill 2"] = allow_skill_1
-
-
-def fortress_skill_control(self, entities, level):
-    if self.driving < 3: return
-    self.input["Skill 2"] = not entity_get_enemy_count(self, entities, goal=0, dist=256)
-
-
-# Handle skills that Are not handled by fire control
-ALLY_SKILL_CONTROL = {
-    "Lord": basic_skill_control,
-    "Emperor": basic_skill_control,
-    "Wizard": wizard_skill_control,
-    "Sovereign": sovereign_skill_control,
-    "Duke": duke_skill_control,
-    "Jester": jester_skill_control,
-    "Condor": condor_skill_control,
-
-    "Curtis": curtis_skill_control,
-    "Doppelgänger": curtis_skill_control,
-    "Lawrence": basic_skill_control,
-    "Mark": mark_skill_control,
-    "Vivianne": basic_skill_control
-}
-
-
-# THR-1 Boss act func
-def lord_boss_input(self, entities, level):
-    if self.time < 60 * 5: return
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        move_target = universal_pathfinding(self, level, self.target.pos)
-        aaa = bool(move_target)
-        if not move_target:
-            move_target = self.target.pos
-        self.mouse_pos = self.target.mouse_pos.copy()
-        entity_move_toward_point(self, move_target, 48)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    else:
-        m_target = self.pos.copy()
-        for e in entities["entities"]:
-            if e.team == self.team: continue
-            if Fun.distance_between(self.pos, e.pos) > 320:
-                m_target = e.pos.copy()
-        move_target = universal_pathfinding(self, level, m_target)
-        aaa = bool(move_target)
-        if not move_target:
-            move_target = m_target
-        self.mouse_pos = m_target
-
-        entity_move_toward_point(self, move_target, 128)
-        if not aaa: entity_spread_apart(self, entities)
-    # entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def emperor_boss_input(self, entities, level):
-    if self.time < 60 * 5: return
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-
-        if not melee_fire_control(self, entities, level, target, wall_in):
-            self.input["Reload"] = self.weapon.ammo == 0 and self.weapon.ammo_pool > 0
-            entity_shoot_with_startup_lag(self, Fun.distance_between(target, self.pos), 7 * 30)
-            if self.free_var['Startup lag'] > 0:
-                self.input["Alt fire"] = True
-                self.input["Shoot"] = start_up_lag_handler(self, self.free_var["Startup time"])
-        else:
-            self.input["Skill 2"] = entity_get_enemy_count(self, entities, goal=5, dist=256)
-        entity_dash_when_targeted(self)
-        move_target = universal_pathfinding(self, level, self.target.pos)
-        aaa = bool(move_target)
-        if not move_target:
-            move_target = self.target.pos
-        self.mouse_pos = self.target.mouse_pos.copy()
-        dist = Fun.distance_between(self.pos, self.target.pos)
-        if dist < 96:
-            print(f"{dist=}")
-
-            if self.free_var["Startup lag kick"] == 0 and self.free_var["kick cooldown"] == 0:
-                self.free_var["Startup lag kick"] += 1
-        entity_move_toward_point(self, move_target, 48)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    else:
-        m_target = self.pos.copy()
-        for e in entities["entities"]:
-            if e.team == self.team: continue
-            if Fun.distance_between(self.pos, e.pos) > 320:
-                m_target = e.pos.copy()
-        move_target = universal_pathfinding(self, level, m_target)
-        aaa = bool(move_target)
-        if not move_target:
-            move_target = m_target
-        self.mouse_pos = m_target
-
-        entity_move_toward_point(self, move_target, 128)
-        if not aaa: entity_spread_apart(self, entities)
-
-    if self.free_var["kick cooldown"] == 0 and self.free_var["Startup lag kick"] != 0 :
-        self.input["Skill 1"] = start_up_lag_handler(self, 90, key="Startup lag kick")
-        if self.input["Skill 1"]:
-            self.free_var["kick cooldown"] = 120
-    else:
-        self.free_var["kick cooldown"] -=1
-
-    # entity_dodge_bullets(self, entities, 64)
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def emperor_boss_draw(self, WIN, scrolling):
-    # That one has animations
-    if self.status["Stealth"] > 0:
-        return
-    # Draw the enemy
-    WIN.blit(Fun.ENTITY_SHADOW, (self.pos[0]-16 + scrolling[0], self.pos[1] + 11 + scrolling[1]), special_flags=pg.BLEND_RGBA_SUB)
-    enemy_direction = Fun.get_entity_direction(self.angle)
-    # Fun.draw_entity(self, scrolling, WIN, enemy_direction)
-    self.draw_player(scrolling, WIN, enemy_direction)
-
-    # Draw the gun
+def draw_weapon(self, WIN, scrolling):
+    draw_pos = [self.pos[0] + scrolling[0], self.pos[1] + scrolling[1]]
     angle_to_add = 0
     if self.reloading:
         angle_to_add = (360 / self.weapon.reload_time) * self.no_shoot_state
 
+    # self.draw_angle
+    drawing_pos = Fun.move_with_vel_angle(draw_pos, 6 + self.weapon_draw_dist, self.aim_angle)
+    drawing_pos = Fun.move_with_vel_angle(drawing_pos, self.draw_rotated_dist, self.aim_angle + self.draw_angle)
+    origin = [0, self.weapon.sprite.get_height() // 2]
+
     Fun.blitRotate(WIN, pg.transform.flip(self.weapon.sprite, True, -90 < self.aim_angle < 90),
-                   Fun.move_with_vel_angle([self.pos[0] + scrolling[0], self.pos[1] + scrolling[1]], 10,
-                                           self.aim_angle),
-                   [0, 0], 180 - self.aim_angle + angle_to_add)
-
-    if self.free_var["Startup lag kick"]:
-        pos = Fun.move_with_vel_angle(self.pos, 16, self.angle)
-        pos[0] += scrolling[0]
-        pos[1] += scrolling[1]
-        mod = self.free_var["Startup lag kick"]/90
-        Fun.draw_transparent_arc(WIN, Fun.DARK_RED, pos, self.angle, 128, 45, 96, width=100000)
-        Fun.draw_transparent_arc(WIN, Fun.DARK_RED, pos, self.angle, 128*mod, 45, 96, width=100000)
-
-
-def wizard_boss_input(self, entities, level):
-    if self.time < 60 * 5: return
-    self.input = Fun.get_default_inputs()
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-
-    main_group = entity_find_main_group(self, entities, dist=256)
-    move_target = universal_pathfinding(self, level, main_group)
-    aaa = bool(move_target)
-    if not move_target:
-        move_target = main_group
-    mod_move_target = move_target.copy()
-    self.mouse_pos = main_group.copy()
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_simple(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        mod_move_target = Fun.move_with_vel_angle(move_target, 128, self.angle - 180)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_move_toward_point(self, move_target, 96)
-    entity_move_toward_point(self, mod_move_target, 32)
-    # if not aaa: entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def sovereign_boss_input(self, entities, level):
-    if self.time < 60 * 5: return
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-    move_target = universal_pathfinding(self, level, self.free_var["Ally waypoint"].pos)
-    aaa = bool(move_target)
-    if not move_target:
-        move_target = self.free_var["Ally waypoint"].pos
-    self.mouse_pos = self.free_var["Ally waypoint"].mouse_pos.copy()
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_simple(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        # basic_fire_control(self, entities, level, target, wall_in)
-
-        entity_shoot_with_startup_lag(self, Fun.distance_between(target, self.pos), self.weapon.range * 0.9)
-        entity_dash_when_targeted(self)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_shoot_startup_handler(self)
-    entity_move_toward_point(self, move_target, 224)
-    if not aaa: entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def duke_boss_input(self, entities, level):
-    if self.time < 60 * 5: return
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-
-    # Try to find Corrine
-    main_group = entity_find_teammate(self, entities, target="Sovereign", check_limit=8)
-    dist = 32
-    if not main_group:
-        main_group = self.free_var["Ally waypoint"].pos
-        dist = 120
-
-    move_target = universal_pathfinding(self, level, main_group)
-    if not move_target:
-        move_target = main_group
-    mod_move_target = move_target.copy()
-    self.mouse_pos = main_group.copy()
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_simple(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        mod_move_target = Fun.move_with_vel_angle(move_target, 128, self.angle)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_move_toward_point(self, move_target, 96)
-    entity_move_toward_point(self, mod_move_target, 32)
-    # if not aaa: entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, dist)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def jester_boss_input(self, entities, level):
-    if self.time < 60 * 5: return
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-
-    target, target_angle, wall_in = entity_target_detection_healer(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        medic_rifle_fire_control(self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-
-        move_target = universal_pathfinding(self, level, self.target.pos)
-        aaa = bool(move_target)
-        if not move_target:
-            move_target = self.target.pos
-        self.mouse_pos = self.target.mouse_pos.copy()
-        entity_move_toward_point(self, move_target, 48)
-        if not aaa: entity_spread_apart(self, entities, spread_dist=48)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_dodge_bullets(self, entities, 64)
-    jester_skill_control(self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def condor_boss_input(self, entities, level):
-    if self.time < 60 * 5: return
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-
-    main_group = entity_find_main_group(self, entities, dist=256)
-    move_target = universal_pathfinding(self, level, main_group)
-    aaa = bool(move_target)
-    if not move_target:
-        move_target = main_group
-    mod_move_target = move_target.copy()
-    self.mouse_pos = main_group.copy()
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_simple(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        mod_move_target = Fun.move_with_vel_angle(move_target, 128, self.angle)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_move_toward_point(self, move_target, 96)
-    entity_move_toward_point(self, mod_move_target, 32)
-    # if not aaa: entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
+                   drawing_pos, origin, 180 - self.aim_angle + angle_to_add + self.draw_angle)
 
 
 def thr_1_on_death(self, entities, level):
@@ -2280,839 +502,6 @@ def condor_boss_on_death(self, entities, level):
         Fun.play_sound("Skill 7")
         return
     thr_1_on_death(self, entities, level)
-
-
-# |Ally input|----------------------------------------------------------------------------------------------------------
-def test_ally_input(self, entities, level):
-    self.input = Fun.get_default_inputs()
-    {"Follow": ally_sub_input_follow,
-     "Hold": ally_sub_input_hold,
-     "Attack": ally_sub_input_attack,
-     "Freely": ACT_FREELY_DICT[self.name]}[self.ai_state](self, entities, level)
-
-
-def ally_sub_input_follow(self, entities, level):
-    # Make it stay on the position to hold
-    move_target = universal_pathfinding(self, level, self.free_var["Ally waypoint"].pos)
-    aaa = bool(move_target)
-    if not move_target:
-        move_target = self.free_var["Ally waypoint"].pos
-    self.mouse_pos = self.free_var["Ally waypoint"].mouse_pos.copy()
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_move_toward_point(self, move_target, 48)
-    if not aaa: entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def ally_sub_input_hold(self, entities, level):
-    move_target = universal_pathfinding(self, level, self.free_var["Ally waypoint"])
-
-    if not move_target:
-        move_target = self.free_var["Ally waypoint"]
-    self.mouse_pos = move_target.copy()
-
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    # Make it stay on the position to hold
-    if target:
-        aim_target = self.target.pos.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        # modify position of target for some ia types
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_move_toward_point(self, move_target, 16)
-    # entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def ally_sub_input_attack(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        # move_target = target.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        entity_move_toward_point(self, aim_target, self.weapon.range * 0.8)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    # entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 32)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def jester_input(self, entities, level):
-    self.input = Fun.get_default_inputs()
-    # When he gets new weapons, use a dict to choose sub inputs
-    #
-    {"Follow": {
-        "Epicurean Medic Rifle": jester_sub_input_follow,
-        "Nihilist Stretcher": ally_sub_input_follow,
-        "Stoic Shield generator": ally_sub_input_follow}[self.weapon.name],
-     "Hold": {
-        "Epicurean Medic Rifle": jester_sub_input_hold,
-        "Nihilist Stretcher": ally_sub_input_hold,
-        "Stoic Shield generator": ally_sub_input_hold}[self.weapon.name],
-     "Attack": {
-        "Epicurean Medic Rifle": jester_sub_input_attack,
-        "Nihilist Stretcher": ally_sub_input_attack,
-        "Stoic Shield generator": ally_sub_input_attack}[self.weapon.name],
-     "Freely": ACT_FREELY_DICT[self.name]}[self.ai_state](self, entities, level)
-
-
-def jester_sub_input_follow(self, entities, level):
-    # Make it stay on the position to hold
-    move_target = universal_pathfinding(self, level, self.free_var["Ally waypoint"].pos)
-    aaa = bool(move_target)
-    if not move_target:
-        move_target = self.free_var["Ally waypoint"].pos
-    self.mouse_pos = self.free_var["Ally waypoint"].mouse_pos.copy()
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_detection_healer(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_move_toward_point(self, move_target, 48)
-    if not aaa: entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def jester_sub_input_hold(self, entities, level):
-    move_target = universal_pathfinding(self, level, self.free_var["Ally waypoint"])
-
-    if not move_target:
-        move_target = self.free_var["Ally waypoint"]
-    self.mouse_pos = move_target.copy()
-
-    target, target_angle, wall_in = entity_target_detection_healer(self, entities, level)
-    # Make it stay on the position to hold
-    if target:
-        aim_target = self.target.pos.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        # modify position of target for some ia types
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_move_toward_point(self, move_target, 16)
-    # entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def jester_sub_input_attack(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection_healer(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        move_target = target.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-# Act freely functions
-def ally_sub_input_roam(self, entities, level):
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        move_target = universal_pathfinding(self, level, self.target.pos)
-        aaa = bool(move_target)
-        if not move_target:
-            move_target = self.target.pos
-        self.mouse_pos = self.target.mouse_pos.copy()
-        entity_move_toward_point(self, move_target, 48)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    else:
-        m_target = self.pos.copy()
-        for e in entities["entities"]:
-            if e.team == self.team: continue
-            if Fun.distance_between(self.pos, e.pos) > 320:
-                m_target = e.pos.copy()
-        move_target = universal_pathfinding(self, level, m_target)
-        aaa = bool(move_target)
-        if not move_target:
-            move_target = m_target
-        self.mouse_pos = m_target
-
-        entity_move_toward_point(self, move_target, 128)
-        if not aaa: entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def ally_sub_input_focus_objective(self, entities, level):
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        move_target = universal_pathfinding(self, level, self.target.pos)
-        aaa = bool(move_target)
-        if not move_target:
-            move_target = self.target.pos
-        self.mouse_pos = self.target.mouse_pos.copy()
-        entity_move_toward_point(self, move_target, 48)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    else:
-        if level['objective points']:
-            m_target = level['objective points'][0]
-            dist = 32
-        else:
-            dist = 128
-            m_target = self.pos.copy()
-            for e in entities["entities"]:
-                if e.team == self.team: continue
-                if Fun.distance_between(self.pos, e.pos) > 320:
-                    m_target = e.pos.copy()
-                    break
-        move_target = universal_pathfinding(self, level, m_target)
-        aaa = bool(move_target)
-        if not move_target:
-            move_target = m_target
-        self.mouse_pos = m_target
-
-        entity_move_toward_point(self, move_target, dist)
-        if not aaa: entity_spread_apart(self, entities)
-
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def ally_sub_input_wizard(self, entities, level):
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-
-    main_group = entity_find_main_group(self, entities, dist=256)
-    move_target = universal_pathfinding(self, level, main_group)
-    aaa = bool(move_target)
-    if not move_target:
-        move_target = main_group
-    mod_move_target = move_target.copy()
-    self.mouse_pos = main_group.copy()
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        mod_move_target = Fun.move_with_vel_angle(move_target, 128, self.angle - 180)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_move_toward_point(self, move_target, 96)
-    entity_move_toward_point(self, mod_move_target, 32)
-    # if not aaa: entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def ally_sub_input_sniper(self, entities, level):
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-    move_target = universal_pathfinding(self, level, self.free_var["Ally waypoint"].pos)
-    aaa = bool(move_target)
-    if not move_target:
-        move_target = self.free_var["Ally waypoint"].pos
-    self.mouse_pos = self.free_var["Ally waypoint"].mouse_pos.copy()
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_move_toward_point(self, move_target, 224)
-    if not aaa: entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def ally_sub_input_duke(self, entities, level):
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-
-    # Try to find Corrine
-    main_group = entity_find_teammate(self, entities, target="Sovereign")
-    dist = 32
-    if not main_group:
-        main_group = self.free_var["Ally waypoint"].pos
-        dist = 120
-
-    move_target = universal_pathfinding(self, level, main_group)
-    aaa = bool(move_target)
-    if not move_target:
-        move_target = main_group
-    mod_move_target = move_target.copy()
-    self.mouse_pos = main_group.copy()
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        mod_move_target = Fun.move_with_vel_angle(move_target, 128, self.angle)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_move_toward_point(self, move_target, 96)
-    entity_move_toward_point(self, mod_move_target, 32)
-    # if not aaa: entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, dist)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def ally_sub_input_jester(self, entities, level):
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-
-    target, target_angle, wall_in = entity_target_detection_healer(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-
-        move_target = universal_pathfinding(self, level, self.target.pos)
-        aaa = bool(move_target)
-        if not move_target:
-            move_target = self.target.pos
-        self.mouse_pos = self.target.mouse_pos.copy()
-        entity_move_toward_point(self, move_target, 48)
-        if not aaa: entity_spread_apart(self, entities, spread_dist=48)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def ally_sub_input_condor(self, entities, level):
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-
-    main_group = entity_find_main_group(self, entities, dist=256)
-    move_target = universal_pathfinding(self, level, main_group)
-    aaa = bool(move_target)
-    if not move_target:
-        move_target = main_group
-    mod_move_target = move_target.copy()
-    self.mouse_pos = main_group.copy()
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        mod_move_target = Fun.move_with_vel_angle(move_target, 128, self.angle)
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_move_toward_point(self, move_target, 96)
-    entity_move_toward_point(self, mod_move_target, 32)
-    # if not aaa: entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def ally_sub_input_lawrence(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target = self.target.pos.copy()
-        move_target = target.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        ALLY_FIRE_CONTROL[self.name][self.weapon.name](self, entities, level, target, wall_in)
-        entity_maintain_weapon_range(self, Fun.distance_between(target, self.pos), move_target, 256, get_away=192)
-        entity_dash_when_targeted(self, no_shoot_threshold=50, threshold=0.75)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 64)
-    ALLY_SKILL_CONTROL[self.name](self, entities, level)
-
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-# Fortress
-def vehicle_escort(self, level):
-    if 'APC path' in level['free var']:
-        if level['free var']['APC path']:
-            move_target = level['free var']['APC path'][0]  # Get first point from the list
-            if Fun.distance_between(move_target, self.pos) < self.thiccness:
-                # Remove current point from the list
-                level['free var']['APC path'].pop(0)
-            if self.is_player: return
-            if self.ai_state != "Hold":
-                # Stops moving if there's enemies too close
-                APC_MOVE_TO_POINT[self.free_var["IS AN APC"]](self, move_target, 8)
-
-
-def fortress_input(self, entities, level):
-    self.input = Fun.get_default_inputs()
-    # If it doesn't act like a normal ally
-    {"Follow": fortress_sub_input_follow,
-     "Hold": fortress_sub_input_hold,
-     "Attack": fortress_sub_input_attack,
-     "Freely": fortress_sub_input_attack}[self.ai_state](self, entities, level)
-    self.input["Alt fire"] = self.driving >= 2
-    # Check if it has objectives to follow, if yes override every order expect hold
-    #
-
-
-APC_MOVE_TO_POINT = { # Add something to choose between weapons later
-    "Fortress": fortress_move_toward_point,
-    "Sand Buggy": buggy_move_toward_point
-}
-
-
-def fortress_sub_input_follow(self, entities, level):
-    self.input = Fun.get_default_inputs()
-    # Make it stay on the position to hold
-    move_target = universal_pathfinding(self, level, self.free_var["Ally waypoint"].pos)
-    aaa = bool(move_target)
-    if not move_target:
-        move_target = self.free_var["Ally waypoint"].pos
-    self.mouse_pos = self.free_var["Ally waypoint"].mouse_pos.copy()
-    self.angle = Fun.angle_between(self.mouse_pos, self.pos)
-
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        self.mouse_pos = aim_target.copy()
-        fortress_fire_control(self, entities, level, target, wall_in)
-
-        ALLY_FIRE_CONTROL[self.free_var["IS AN APC"]][self.weapon.name](self, entities, level, target, wall_in)
-        self.input["Skill 1"] = self.driving >= 1
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    fortress_skill_control(self, entities, level)
-    APC_MOVE_TO_POINT[self.free_var["IS AN APC"]](self, move_target, 64)
-    # fortress_move_toward_point(self, move_target, 64)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def fortress_sub_input_hold(self, entities, level):
-    self.input = Fun.get_default_inputs()
-    move_target = universal_pathfinding(self, level, self.free_var["Ally waypoint"])
-
-    if not move_target:
-        move_target = self.free_var["Ally waypoint"]
-    self.mouse_pos = move_target.copy()
-
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    # Make it stay on the position to hold
-    if target:
-        aim_target = self.target.pos.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        # modify position of target for some ia types
-        ALLY_FIRE_CONTROL[self.free_var["IS AN APC"]][self.weapon.name](self, entities, level, target, wall_in)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    fortress_skill_control(self, entities, level)
-    APC_MOVE_TO_POINT[self.free_var["IS AN APC"]](self, move_target, 64)
-    # fortress_move_toward_point(self, move_target, 64)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def fortress_sub_input_attack(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target = self.target.pos.copy()
-        move_target = target.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-
-        ALLY_FIRE_CONTROL[self.free_var["IS AN APC"]][self.weapon.name](self, entities, level, target, wall_in)
-
-        APC_MOVE_TO_POINT[self.free_var["IS AN APC"]](self, move_target, 64)
-        # fortress_move_toward_point(self, move_target, 64)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    fortress_skill_control(self, entities, level)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def azura_input(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        # move_target = target.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-
-        if Fun.distance_between(target, self.pos) <= self.weapon.range:
-            self.input["Dash"] = True
-        # entity_dash_when_targeted(self)
-        entity_move_toward_point(self, aim_target, self.weapon.range * 0.8)
-    else:
-        move_target = universal_pathfinding(self, level, self.owner.pos)
-        if not move_target:
-            move_target = self.owner.pos
-        entity_move_toward_point(self, move_target, 48)
-
-    # entity_spread_apart(self, entities)
-    # entity_dodge_bullets(self, entities, 32)
-
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def birna_input(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        # move_target = target.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-
-        # basic_fire_control(self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        entity_move_toward_point(self, aim_target, self.weapon.range * 0.8)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    else:
-        move_target = universal_pathfinding(self, level, self.owner.pos)
-        # aaa = bool(move_target)
-        if not move_target:
-            move_target = self.owner .pos
-        entity_move_toward_point(self, move_target, 48)
-
-    # entity_spread_apart(self, entities)
-    # entity_dodge_bullets(self, entities, 32)
-
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def agatha_input(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        # move_target = target.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-
-        melee_fire_control(self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        entity_move_toward_point(self, aim_target, self.weapon.range * 0.8)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    else:
-        move_target = universal_pathfinding(self, level, self.owner.pos)
-        if not move_target:
-            move_target = self.owner .pos
-        entity_move_toward_point(self, move_target, 48)
-
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def m_input(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        # move_target = target.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-
-        basic_fire_control(self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        entity_move_toward_point(self, aim_target, self.weapon.range * 0.8)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    else:
-        move_target = universal_pathfinding(self, level, self.owner.pos)
-        aaa = bool(move_target)
-        if not move_target:
-            move_target = self.owner .pos
-        entity_move_toward_point(self, move_target, 48)
-
-    # self.input["Alt fire"] = self.time > VIVIANNE_SUMMON_LIVE_TIME // 2
-    # self.input["Shoot"] = not self.input["Alt fire"] or self.input["Shoot"]
-    # print(self.input["Alt fire"])
-    # entity_spread_apart(self, entities)
-    self.input["Dash"] = Fun.find_closest_bullet_types_in_circle(self, entities, 32, (Bullets.Bullet, Bullets.Fire, Bullets.Missile, Bullets.Artillery))
-
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def sierra_input(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        # move_target = target.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-
-        basic_fire_control(self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        entity_move_toward_point(self, aim_target, self.weapon.range * 0.8)
-    else:
-        move_target = universal_pathfinding(self, level, self.owner.pos)
-        aaa = bool(move_target)
-        if not move_target:
-            move_target = self.owner.pos
-        entity_move_toward_point(self, move_target, 48)
-
-    if self.input["Reload"]:
-        # Switch gun
-        if self.weapon.name == "Anti-Material Rifle":
-            self.weapon = Weapons.BasicWeapon(Weapons.weapon_repertory["Shotgun"])
-            self.reloading = True
-            self.no_shoot_state = 30
-        elif self.weapon.name == "Shotgun":
-            self.weapon = Weapons.BasicWeapon(Weapons.weapon_repertory["Pistol"])
-            self.reloading = True
-            self.no_shoot_state = 30
-        else:
-            self.free_var["Life Limit"] = 10
-            self.no_shoot_state = 10
-
-
-    # entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 32)
-    # Switch guns
-
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def elektra_input(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        # move_target = target.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-
-        basic_fire_control(self, entities, level, target, wall_in)
-        # entity_dash_when_targeted(self)
-        # entity_move_toward_point(self, aim_target, self.weapon.range * 0.8)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-
-    # entity_spread_apart(self, entities)
-    # entity_dodge_bullets(self, entities, 32)
-
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def makoto_input(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    if target:
-        aim_target = self.target.pos.copy()
-        # move_target = target.copy()
-        self.mouse_pos = aim_target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-
-        basic_fire_control(self, entities, level, target, wall_in)
-        entity_dash_when_targeted(self)
-        # entity_move_toward_point(self, aim_target, self.weapon.range * 0.8)
-
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    move_target = universal_pathfinding(self, level, self.owner.pos)
-    aaa = bool(move_target)
-    if not move_target:
-        move_target = self.owner .pos
-    entity_move_toward_point(self, move_target, 48)
-
-    # entity_spread_apart(self, entities)
-    entity_dodge_bullets(self, entities, 32)
-
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
 
 
 # |Ally Draw|-----------------------------------------------------------------------------------------------------------
@@ -3333,583 +722,6 @@ def vivianne_summons_on_death(self, entities, level):
         entities["items"][-1].owner = self.owner
 
 
-# |Enemy Input|---------------------------------------------------------------------------------------------------------
-def enemy_input_nest_trooper(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target = self.target.pos.copy()
-        move_target = target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
-        # modify position of target for some ia types
-
-        og_dist = Fun.distance_between(target, self.pos)
-        range_target = og_dist > self.weapon.range * 0.65
-        if range_target:
-            self.input["Right"] = self.pos[0] < move_target[0]
-            self.input["Left"] = self.pos[0] > move_target[0]
-            self.input["Down"] = self.pos[1] < move_target[1]
-            self.input["Up"] = self.pos[1] > move_target[1]
-
-        if og_dist < self.weapon.range * 0.3:
-            self.input["Right"] = self.pos[0] > move_target[0]
-            self.input["Left"] = self.pos[0] < move_target[0]
-            self.input["Down"] = self.pos[1] > move_target[1]
-            self.input["Up"] = self.pos[1] < move_target[1]
-
-        # Check if something is in range
-        if random.randint(0, self.weapon.fire_rate) == 0 and Fun.check_point_in_circle(
-                self.weapon.range * 0.8, self.pos[0], self.pos[1], target[0], target[1]) and not wall_in:
-            self.input["Shoot"] = True
-        if self.weapon.weapon_class == "Melee":
-            if Fun.distance_between(target, self.pos) <= self.weapon.range:
-                # combo_stage = self.free_var[self.weapon.name]["Combo stage"]
-                self.input["Shoot"] = self.free_var[self.weapon.name]["Press time"] < 40 #  - 10 * combo_stage
-
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-# Testing
-
-
-def enemy_input_faction_1_basic(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.65, get_away=64)
-        entity_shoot_with_startup_lag(self, og_dist, self.weapon.range * 1.1)
-        # Reloading
-        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-        self.input["Reload"] = True
-
-    entity_shoot_startup_handler(self)
-
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-# Faction 1
-
-
-def enemy_input_faction_1_body_guard(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    true_target = self.pos
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        true_target = universal_pathfinding(self, level, move_target)
-        if not true_target:
-            true_target = move_target
-            entity_maintain_weapon_range(self, og_dist, true_target, self.weapon.range * 0.65, get_away=64)
-            entity_shoot_with_startup_lag(self, og_dist, self .weapon.range * 1.1)
-        # Reloading
-        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-        self.input["Reload"] = True
-
-    entity_shoot_startup_handler(self)
-    entity_move_toward_point(self, true_target, 96)
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def enemy_input_faction_1_heavy_sniper(self, entities, level):
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    true_target = self.pos
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        true_target = universal_pathfinding(self, level, move_target)
-        if not true_target:
-            true_target = move_target
-            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.65, get_away=64)
-            entity_shoot_with_startup_lag(self, og_dist, self.weapon.range * 1.1)
-        # Reloading
-        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-        self.input["Reload"] = True
-    else:
-        entity_dodge_bullets(self, entities, look_range=64)
-
-    entity_shoot_startup_handler(self)
-
-    entity_move_toward_point(self, true_target, 96)
-    entity_spread_apart(self, entities)
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def enemy_input_faction_1_radar(self, entities, level):
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        entity_maintain_weapon_range(self, og_dist, move_target, 512, get_away=128)
-
-    entity_escort_ally(self, entities, level, escort_list=["Missile Operator"], escort_dist=48, look_dist=128)
-    entity_dodge_bullets(self, entities, look_range=64)
-
-    entity_spread_apart(self, entities)
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def enemy_input_faction_1_missile(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    true_target = self.pos
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        true_target = universal_pathfinding(self, level, move_target)
-        if not true_target:
-            true_target = move_target
-            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.65, get_away=64)
-            entity_shoot_no_startup_lag(self, og_dist, self.weapon.range * 1.1)
-
-        # Reloading
-        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-        self.input["Reload"] = True
-
-    entity_move_toward_point(self, true_target, 96)
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def enemy_input_faction_1_drone(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-        mod = 1
-        # if self.reloading: mod = 3
-        self.mouse_pos = self.target.pos
-        entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.98 * mod, get_away=self.weapon.range * 0.75 * mod)
-        entity_shoot_no_startup_lag(self, og_dist, self.weapon.range * 1.1)
-
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def enemy_input_faction_2_basic(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    true_target = self.pos
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        true_target = universal_pathfinding(self, level, move_target)
-        if not true_target:
-            true_target = move_target
-            mod = 1
-            # if self.reloading: mod = 3
-            self.mouse_pos = self.target.pos
-            entity_move_toward_point(self, true_target, 96)
-            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.98 * mod, get_away=self.weapon.range * 0.75 * mod)
-            entity_shoot_no_startup_lag(self, og_dist, self.weapon.range * 1.1)
-        entity_dodge_bullets(self, entities, 32)
-        # Reloading
-        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-        self.input["Reload"] = True
-
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def enemy_input_faction_2_boomstick(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    true_target = self.pos
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        true_target = universal_pathfinding(self, level, move_target)
-        if not true_target:
-            true_target = move_target
-            mod = 1
-            if self.reloading: mod = 3
-            self.mouse_pos = self.target.pos
-            entity_move_toward_point(self, true_target, 96)
-            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.98 * mod, get_away=self.weapon.range * 0.75 * mod)
-            entity_shoot_with_startup_lag(self, og_dist, self.weapon.range * 1.1)
-
-        # Reloading
-        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-        self.input["Reload"] = True
-
-    entity_shoot_startup_handler(self)
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def enemy_input_faction_2_smoker(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    true_target = self.pos
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        true_target = universal_pathfinding(self, level, move_target)
-        if not true_target:
-            true_target = move_target
-            mod = 1
-            # if self.reloading: mod = 3
-            self.mouse_pos = self.target.pos
-            entity_move_toward_point(self, true_target, 96)
-            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.98 * mod, get_away=self.weapon.range * 0.75 * mod)
-            entity_shoot_no_startup_lag(self, og_dist, self.weapon.range * 1.1)
-        entity_dodge_bullets(self, entities, 32)
-        # Reloading
-        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-        self.input["Reload"] = True
-    entity_escort_ally(self, entities, level, escort_list=("VIP", "BoomStick"), escort_dist=48, look_dist=256)
-
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def enemy_input_faction_2_crusher(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    true_target = self.pos
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        true_target = universal_pathfinding(self, level, move_target)
-        if not true_target:
-            true_target = move_target
-            mod = 1
-            # if self.reloading: mod = 3
-            self.mouse_pos = self.target.pos
-            entity_move_toward_point(self, true_target, 96)
-            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.66 * mod, get_away=self.weapon.range * 0.25 * mod)
-            melee_fire_control(self, entities, level, target, wall_in)
-        entity_dodge_bullets(self, entities, 32)
-        # Reloading
-        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-        self.input["Reload"] = True
-
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def enemy_input_faction_2_assassin(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    true_target = self.pos
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        true_target = universal_pathfinding(self, level, move_target)
-        if not true_target:
-            true_target = move_target
-            mod = 1
-            # if self.reloading: mod = 3
-            self.mouse_pos = self.target.pos
-            entity_move_toward_point(self, Fun.move_with_vel_angle(true_target, 16, target_angle - 180), 80)
-            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.66 * mod, get_away=self.weapon.range * 0.25 * mod)
-            #
-            melee_fire_control_no_stopping(self, entities, level, target, wall_in)
-        entity_dodge_bullets(self, entities, 32)
-        # Reloading
-        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-        self.input["Reload"] = True
-
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def enemy_input_faction_3_basic(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    true_target = self.pos
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        true_target = universal_pathfinding(self, level, move_target)
-        if not true_target:
-            true_target = move_target
-            mod = 1
-            if self.reloading: mod = 3
-            self.mouse_pos = self.target.pos
-            entity_move_toward_point(self, true_target, 96)
-            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.98 * mod, get_away=self.weapon.range * 0.75 * mod)
-            entity_shoot_no_startup_lag(self, og_dist, self.weapon.range * 1.1)
-
-        # Reloading
-        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-        self.input["Reload"] = True
-
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def enemy_input_faction_3_spotter(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    true_target = self.pos
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        # true_target = universal_pathfinding(self, level, move_target)
-        #     true_target = move_target
-        # if not true_target:
-            # entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.98, get_away=self.weapon.range * 0.75)
-            # entity_shoot_no_startup_lag(self, og_dist, 256)
-        #     self.input["Shoot"] = True
-        #     entity_move_toward_point(self, true_target, 96)
-
-        # Reloading
-
-    entity_escort_ally(self, entities, level, escort_list=("VIP", "Artilleryman", "Bulwark"), escort_dist=48, look_dist=256)
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def enemy_input_faction_3_artilleryman(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    true_target = self.pos
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        true_target = universal_pathfinding(self, level, move_target)
-        if not true_target:
-            true_target = move_target
-            # entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.98, get_away=self.weapon.range * 0.75)
-            # entity_shoot_no_startup_lag(self, og_dist, 256)
-            self.input["Shoot"] = True
-            entity_move_toward_point(self, true_target, 96)
-
-        # Reloading
-        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-        self.input["Reload"] = True
-
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def enemy_input_faction_3_grenade(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    true_target = self.pos
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        true_target = universal_pathfinding(self, level, move_target)
-        if not true_target:
-            true_target = move_target
-            mod = 1
-            if self.reloading: mod = 3
-            self.mouse_pos = self.target.pos
-            entity_move_toward_point(self, true_target, 96)
-            entity_maintain_weapon_range(self, og_dist, move_target, 196 * 0.98 * mod, get_away=196 * 0.75 * mod)
-            entity_shoot_no_startup_lag(self, og_dist, 196 * 1.1)
-
-        # Reloading
-        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-        self.input["Reload"] = True
-
-    entity_spread_apart(self, entities)
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    return target, target_angle
-
-
-def enemy_input_faction_3_bulwark(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-    true_target = self.pos
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        true_target = universal_pathfinding(self, level, move_target)
-        if not true_target:
-            true_target = move_target
-            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 1.2, get_away=64)
-        entity_shoot_no_startup_lag(self, og_dist, self.weapon.range * 1.6)
-
-        # Reloading
-        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
-            self.input["Reload"] = True
-    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
-        self.input["Reload"] = True
-
-    entity_move_toward_point(self, true_target, 96)
-    entity_spread_apart(self, entities)
-    # Stunning it doesn't disable it
-
-    return target, target_angle
-
-
-# |Enemy Act|-----------------------------------------------------------------------------------------------------------
-def enemy_act_type_1(self, entities, level):
-    # Get the inputs
-    # target, target_angle = self.func_get_input(self, entities, {"enemies": []}, level)
-
-    Fun.aim_system(self, self.weapon)
-
-    # Do shit
-    Fun.movement_entity(self)
-
-    # I am placing the passive effects of enemies in the passive slot to not have to make more act functions
-    self.weapon.passive(self, entities, level)
-    self.crit = False
-    # Gun
-    if self.no_shoot_state == 0:
-        self.reloading = False
-        self.shooting = False
-        if self.input["Alt fire"]:
-            self.weapon.alt_fire(self, entities, level)
-        if self.input["Shoot"] and self.weapon.ammo > 0:
-            self.shooting = True
-            self.shoot_bullet(entities, level)
-
-        # Reloading
-        if self.input["Reload"] and self.weapon.ammo_pool > 0:
-            self.no_shoot_state, self.reloading = self.weapon.reload()
-    else:
-        self.shooting = False
-        self.no_shoot_state -= 1
-
-    # |Status effects|--------------------------------------------------------------------------------------------------
-    Fun.status_manager(self, entities)
-
-    # |Movement output|-------------------------------------------------------------------------------------------------
-    Fun.movement_output(self, level)
-    draw_aim_line(self, entities)
-    if self.armour_break:
-        # Need a sound effect
-        self.armour_break = False
-
-
-def enemy_act_type_2(self, entities, level):
-    # Get the inputs
-    # target, target_angle = self.func_get_input(self, entities, {"enemies": []}, level)
-
-    Fun.aim_system(self, self.weapon)
-
-    # Do shit
-    Fun.movement_entity(self)
-
-    self.crit = False
-    # Gun
-    if self.no_shoot_state == 0:
-        self.reloading = False
-        self.shooting = False
-        if self.input["Shoot"] and self.weapon.ammo > 0:
-            self.shooting = True
-            self.shoot_bullet(entities, level)
-
-    else:
-        self.shooting = False
-        self.no_shoot_state -= 1
-
-    # |Status effects|--------------------------------------------------------------------------------------------------
-    Fun.status_manager(self, entities)
-
-    # |Movement output|-------------------------------------------------------------------------------------------------
-    Fun.movement_output(self, level)
-
-
 # |Enemy Draw|----------------------------------------------------------------------------------------------------------
 def enemy_draw_basic(self, WIN, scrolling):
     # That one has animations
@@ -4027,71 +839,34 @@ def enforcer_on_death(self, entities, level):
 
 
 # |Bosses|--------------------------------------------------------------------------------------------------------------
-# Armoured Shield Generator
-#   Laser cannon
-def armoured_shield_generator_input(self, entities, level):
+def emperor_boss_draw(self, WIN, scrolling):
+    # That one has animations
+    if self.status["Stealth"] > 0:
+        return
+    # Draw the enemy
+    WIN.blit(Fun.ENTITY_SHADOW, (self.pos[0]-16 + scrolling[0], self.pos[1] + 11 + scrolling[1]), special_flags=pg.BLEND_RGBA_SUB)
+    enemy_direction = Fun.get_entity_direction(self.angle)
+    # Fun.draw_entity(self, scrolling, WIN, enemy_direction)
+    self.draw_player(scrolling, WIN, enemy_direction)
 
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
+    # Draw the gun
+    angle_to_add = 0
+    if self.reloading:
+        angle_to_add = (360 / self.weapon.reload_time) * self.no_shoot_state
 
-    # Find machine gun angle
-    p_targets = {}
-    for e in entities["entities"]:
-        if e.team == self.team:
-            continue
-        if e.agro >= 0 and e.status["Stealth"] == 0:
-            key = f"{e.agro}"
-            if key not in p_targets:
-                p_targets.update({key: [e]})
-            else:
-                p_targets[key].append(e)
-    keys = list(p_targets.keys())
-    keys.sort()
-    self.free_var["Allow machine gun"] = False
-    if p_targets:
-        mod = -2
-        if len(keys) == 1:
-            mod = -1
-        aaa = keys[mod]
-        mg_target = p_targets[aaa][0]
-        mg_target = mg_target.pos
-        self.free_var["Allow machine gun"] = Fun.distance_between(mg_target, [self.pos[0], self.pos[1]-18]) < 40 * 7
-        self.free_var["Machine Gun Angle"] = Fun.angle_value_limiter(
-            Fun.move_angle(
-                Fun.angle_between(mg_target, [self.pos[0], self.pos[1]-18]), self.free_var["Machine Gun Angle"], 7
-            ))
+    Fun.blitRotate(WIN, pg.transform.flip(self.weapon.sprite, True, -90 < self.aim_angle < 90),
+                   Fun.move_with_vel_angle([self.pos[0] + scrolling[0], self.pos[1] + scrolling[1]], 10,
+                                           self.aim_angle),
+                   [0, 0], 180 - self.aim_angle + angle_to_add)
 
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-        aim_target = self.target.pos.copy()
+    if self.free_var["Startup lag kick"]:
+        pos = Fun.move_with_vel_angle(self.pos, 16, self.angle)
+        pos[0] += scrolling[0]
+        pos[1] += scrolling[1]
+        mod = self.free_var["Startup lag kick"]/90
+        Fun.draw_transparent_arc(WIN, Fun.DARK_RED, pos, self.angle, 128, 45, 96, width=100000)
+        Fun.draw_transparent_arc(WIN, Fun.DARK_RED, pos, self.angle, 128*mod, 45, 96, width=100000)
 
-        entity_shoot_with_startup_lag(self, og_dist, 320)
-
-    closest_target = Fun.find_closest_in_circle(self, entities, 512, "entities")
-    if closest_target:
-        fortress_move_toward_point(self, closest_target, 40 * 7)
-        fortress_move_away_point(self, closest_target, 25 * 7)
-
-        angle = Fun.angle_between(closest_target, self.pos)
-        self.input["Right"] = self.free_var["Move angle"] < angle
-        self.input["Left"] = self.free_var["Move angle"] > angle
-
-        if not -(180 - 4) + angle < self.free_var["Move angle"] < 180 - 4 + angle:
-            self.input["Right"] = self.free_var["Move angle"] > angle
-            self.input["Left"] = self.free_var["Move angle"] < angle
-
-        if self.free_var["Run people over"] <= 0:
-            self.free_var["Run people over"] = 250
-            self.input["Dash"] = True
-        else:
-            self.free_var["Run people over"] -=1
-
-    entity_shoot_startup_handler(self)
-    # Stunned status manager
-    # Fun.stunned_manager(self)
-    return target, target_angle
 
 
 def armoured_shield_generator_act(self, entities, level):
@@ -4306,11 +1081,6 @@ def armoured_shield_generator_on_death(self, entities, level):
 
 
 # AA Site
-def aa_site_input(self, entities, level):
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    return target, target_angle
-
 
 def aa_site_act_init(self, entities, level):
     # Spawn other buildings
@@ -4552,63 +1322,6 @@ def aa_site_draw_aa_laser(self, WIN, scrolling):
 
 
 # Hover Tank
-def hover_tank_input(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    # Find machine gun angle
-    p_targets = {}
-    for e in entities["entities"]:
-        if e.team == self.team:
-            continue
-        if e.agro >= 0 and e.status["Stealth"] == 0:
-            key = f"{e.agro}"
-            if key not in p_targets:
-                p_targets.update({key: [e]})
-            else:
-                p_targets[key].append(e)
-    keys = list(p_targets.keys())
-    keys.sort()
-    self.free_var["Allow machine gun"] = False
-    if p_targets:
-        mod = -2
-        if len(keys) == 1:
-            mod = -1
-        aaa = keys[mod]
-        mg_target = p_targets[aaa][0]
-        mg_target = mg_target.pos
-        self.free_var["Allow machine gun"] = Fun.distance_between(mg_target, [self.pos[0], self.pos[1]-18]) < 40 * 7
-        self.free_var["Machine Gun Angle"] = Fun.angle_value_limiter(
-            Fun.move_angle(
-                Fun.angle_between(mg_target, [self.pos[0], self.pos[1]-18]), self.free_var["Machine Gun Angle"], 7
-            ))
-
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-        aim_target = self.target.pos.copy()
-
-        # basic_fire_control(self, entities, level, target, wall_in)
-        entity_shoot_with_startup_lag(self, og_dist, 320)
-
-    closest_target = Fun.find_closest_in_circle(self, entities, 512, "entities")
-    if closest_target:
-        fortress_move_toward_point(self, closest_target, 40 * 7)
-        # fortress_move_away_point(self, closest_target, 25 * 7)
-
-        if self.free_var["Run people over"] <= 0:
-            self.free_var["Run people over"] = 250
-            self.input["Dash"] = True
-            # if  Fun.sounds_dict["Hover Tank Get Some"]["Sound"].get_num_channels() == 0:
-            #     Fun.play_sound("Hover Tank Get In My Way", "Voice")
-        else:
-            self.free_var["Run people over"] -=1
-
-    entity_shoot_startup_handler(self)
-    # Stunned status manager
-    # Fun.stunned_manager(self)
-    return target, target_angle
 
 
 def hover_tank_act(self, entities, level):
@@ -4804,25 +1517,6 @@ def hover_tank_on_death(self, entities, level):
 
 
 # Gilgamesh
-def gilgamesh_input(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-        dist = 420
-        if self.no_shoot_state != 0:
-            dist = 64
-        entity_maintain_weapon_range(self, og_dist, move_target, dist, get_away=64)
-
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    entity_dodge_bullets(self, entities, 24)
-    return target, target_angle
-
 
 def gilgamesh_act(self, entities, level):
     # |Movement Input|----------------------------------------------------------------------------------------------
@@ -5097,36 +1791,6 @@ def gilgamesh_wall(self, entities, level):
 
 
 # Fire Support Mech
-def bloodhound_input(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-        aim_target = self.target.pos.copy()
-
-        entity_shoot_with_startup_lag(self, og_dist, 320)
-
-    closest_target = Fun.find_closest_in_circle(self, entities, 512, "entities")
-    if closest_target:
-        fortress_move_toward_point(self, closest_target, 40 * 7)
-        fortress_move_away_point(self, closest_target, 25 * 7)
-
-        angle = Fun.angle_between(closest_target, self.pos)
-        self.input["Right"] = self.free_var["Move angle"] < angle
-        self.input["Left"] = self.free_var["Move angle"] > angle
-
-        if not -(180 - 4) + angle < self.free_var["Move angle"] < 180 - 4 + angle:
-            self.input["Right"] = self.free_var["Move angle"] > angle
-            self.input["Left"] = self.free_var["Move angle"] < angle
-
-    # Stunned status manager
-    # Fun.stunned_manager(self)
-    return target, target_angle
-
-
 def bloodhound_act(self, entities, level):
     # |Movement Input|----------------------------------------------------------------------------------------------
     self.running = False
@@ -5445,70 +2109,6 @@ def bloodhound_boost(self, entities, level):
 
 # Attack Helicopter
 #   Could add different missile patterns
-def attack_helicopter_input(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    # Find machine gun angle
-    p_targets = {}
-    for e in entities["entities"]:
-        if e.team == self.team:
-            continue
-        if e.agro >= 0 and e.status["Stealth"] == 0:
-            key = f"{e.agro}"
-            if key not in p_targets:
-                p_targets.update({key: [e]})
-            else:
-                p_targets[key].append(e)
-    keys = list(p_targets.keys())
-    keys.sort()
-    self.free_var["Allow machine gun"] = False
-    if p_targets:
-        mod = -2
-        if len(keys) == 1:
-            mod = -1
-        aaa = keys[mod]
-        mg_target = p_targets[aaa][0]
-        mg_target = mg_target.pos
-        self.free_var["Allow machine gun"] = Fun.distance_between(mg_target, [self.pos[0], self.pos[1]-18]) < 40 * 7
-        self.free_var["Machine Gun Angle"] = Fun.angle_value_limiter(
-            Fun.move_angle(
-                Fun.angle_between(mg_target, [self.pos[0], self.pos[1]-18]), self.free_var["Machine Gun Angle"], 7
-            ))
-
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-        aim_target = self.target.pos.copy()
-
-        # # basic_fire_control(self, entities, level, target, wall_in)
-        entity_shoot_with_startup_lag(self, og_dist, 320)
-
-    closest_target = Fun.find_closest_in_circle(self, entities, 512+128, "entities")
-    if closest_target:
-        fortress_move_toward_point(self, closest_target, 40 * (2 + 5 * math.sin(self.time/30)))
-        fortress_move_away_point(self, closest_target, 35 * 2)
-        if self.free_var["Run people over"] <= 0:
-            self.free_var["Run people over"] = 250
-            self.input["Dash"] = True
-        else:
-            self.free_var["Run people over"] -=1
-
-    entity_shoot_startup_handler(self)
-    if self.free_var["Startup lag"] == 120:
-        Fun.play_sound("Attack Helicopter Locked On")
-    if self.free_var["Startup lag"] == 190:
-        Fun.play_sound({"HE": "Attack Helicopter Attack",
-                           "Incendiary": "Attack Helicopter Fire",
-                           "Shrapnel": "Attack Helicopter Nails"
-                           }[self.free_var["Rocket type"]])
-
-    # Stunned status manager
-    # Fun.stunned_manager(self)
-    return target, target_angle
-
-
 def attack_helicopter_act(self, entities, level):
     # pos = Fun.move_with_vel_angle(pos, 22.6274, angle)
     # pos = Fun.move_with_vel_angle(pos, 20, self.aim_angle)
@@ -5715,39 +2315,6 @@ def attack_helicopter_on_death(self, entities, level):
     entities["UI particles"].append(
         Particles.AttackHelicopterDeathParticle(self.pos, 300, self.aim_angle, self.time))
 
-
-# Rigel
-def rigel_input(self, entities, level):
-    if self.no_shoot_state > 0:
-        return
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-
-        entity_shoot_with_startup_lag(self, og_dist, 320)
-
-    closest_target = Fun.find_closest_in_circle(self, entities, 512, "entities")
-    self.target = None
-    if closest_target:
-        if self.free_var["Current attack"] not in ["Shoulder Bash", "Lance Swipe", "Giga Thrust"]:
-            fortress_move_toward_point(self, closest_target, 40 * 7)
-            fortress_move_away_point(self, closest_target, 25 * 7)
-
-        angle = Fun.angle_between(closest_target, self.pos)
-        self.input["Right"] = self.free_var["Move angle"] < angle
-        self.input["Left"] = self.free_var["Move angle"] > angle
-        # self.target = closest_target
-        if not -(180 - 4) + angle < self.free_var["Move angle"] < 180 - 4 + angle:
-            self.input["Right"] = self.free_var["Move angle"] > angle
-            self.input["Left"] = self.free_var["Move angle"] < angle
-
-    # Stunned status manager
-    # Fun.stunned_manager(self)
-    return target, target_angle
 
 
 def rigel_act(self, entities, level):
@@ -6142,40 +2709,6 @@ def rigel_raining_hell(self, entities, level):
 
 
 # Curtis
-def curtis_input(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
-    self.input = Fun.get_default_inputs()
-    if target:
-        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
-        dist = 420
-        if self.no_shoot_state != 0:
-            dist = 64
-        entity_maintain_weapon_range(self, og_dist, move_target, dist, get_away=64)
-        self.input["Skill 1"] = entity_get_enemy_count(self, entities, goal=0, dist=80, entity_type="bullets")
-
-    # Stunned status manager
-    Fun.stunned_manager(self)
-
-    # Dash bullet thing
-    if self.free_var["Stamina"] >= 50 and self.dash_cooldown <= 0:
-        bullet_to_dodge = Fun.find_closest_bullet_types_in_circle(self, entities, 32, [
-            Bullets.Bullet, Bullets.BulletSlowing, Bullets.Missile
-        ])
-        if bullet_to_dodge:
-            dodge_pos = bullet_to_dodge.pos
-
-            self.input["Right"] = self.pos[0] < dodge_pos[0]
-            self.input["Left"] = self.pos[0] > dodge_pos[0]
-            self.input["Down"] = self.pos[1] < dodge_pos[1]
-            self.input["Up"] = self.pos[1] > dodge_pos[1]
-            self.input["Dash"] = True
-            self.free_var["Stamina"] -= 50
-    return target, target_angle
-
-
 def curtis_act(self, entities, level):
     if self.free_var["Stamina"] < 300:
         self.free_var["Stamina"] += 1
@@ -6416,65 +2949,85 @@ def curtis_inverted_flower_volley(self, entities, bullets):
         self.weapon.free_var["Peace angle"] = self.aim_angle - 30
 
 
-ACT_FREELY_DICT = {
-         "Lord": ally_sub_input_roam,
-         "Emperor": ally_sub_input_focus_objective,
-         "Wizard": ally_sub_input_wizard,
-         "Sovereign": ally_sub_input_sniper,
-         "Duke": ally_sub_input_duke,
-         "Jester": ally_sub_input_jester,
-         "Condor": ally_sub_input_condor,
 
-         "Curtis": ally_sub_input_focus_objective,
-         "Doppelgänger": ally_sub_input_focus_objective,
-         "Lawrence": ally_sub_input_lawrence,
-         "Mark": ally_sub_input_sniper,
-         "Vivianne": ally_sub_input_wizard
-     }
+# |Draw function|-------------------------------------------------------------------------------------------------------
+def enemy_draw_slime(self, WIN, scrolling):
+    if self.status["Stealth"] > 0:
+        return
+    # Draw the enemy
+    enemy_direction = Fun.get_entity_direction(self.angle)
 
-# |No Name TSS|---------------------------------------------------------------------------------------------------------
-# |No Name RSS|---------------------------------------------------------------------------------------------------------
-def enemy_input_commie_type_1(self, entities, level):
-    # This version is used by all commie bots
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, target_angle, wall_in = entity_target_detection(self, entities, level)
+    sprite_drawn = self.sprites[enemy_direction]["Walk"][0]
+    sprite_drawn = pg.transform.scale(sprite_drawn, [self.thiccness, self.thiccness])
+    WIN.blit(sprite_drawn, (self.pos[0] - sprite_drawn.get_width() // 2 + scrolling[0],
+                            self.pos[1] - sprite_drawn.get_height() // 2 + scrolling[1]))
 
-    self.input = Fun.get_default_inputs()
-    if target:
 
-        aim_target = self.target.pos.copy()
-        move_target = target.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
+    if self.draw_targeting_range > 0:
+        # Detection cone
+        pg.draw.line(WIN, Fun.GREEN, [self.pos[0] + scrolling[0], self.pos[1] + scrolling[1]],
+                     [self.pos[0] - self.targeting_range * math.cos(
+                         (self.angle - self.targeting_angle) * math.pi / 180) +
+                      scrolling[0],
+                      self.pos[1] - self.targeting_range * math.sin(
+                          (self.angle - self.targeting_angle) * math.pi / 180) +
+                      scrolling[1]])
+        pg.draw.line(WIN, Fun.GREEN, [self.pos[0] + scrolling[0], self.pos[1] + scrolling[1]],
+                     [self.pos[0] - self.targeting_range * math.cos(
+                         (self.angle + self.targeting_angle) * math.pi / 180) +
+                      scrolling[0],
+                      self.pos[1] - self.targeting_range * math.sin(
+                          (self.angle + self.targeting_angle) * math.pi / 180) +
+                      scrolling[1]])
+        # Circle of detection
+        pg.draw.circle(WIN, Fun.GREEN, [self.pos[0] + scrolling[0], self.pos[1] + scrolling[1]],
+                       self.targeting_range // 10, 1)
+        self.draw_targeting_range -= 1
+    #
 
-        self.input["Right"] = self.pos[0] < target[0]
-        self.input["Left"] = self.pos[0] > target[0]
-        self.input["Down"] = self.pos[1] < target[1]
-        self.input["Up"] = self.pos[1] > target[1]
 
-        # Just randomly attack
-        if random.randint(0, self.weapon.fire_rate // 2) == 0:
-            self.input["Shoot"] = True
-        if not self.input["Shoot"]:
-            if random.randint(0, self.weapon.fire_rate) == 0:
-                self.input["Alt fire"] = True
+# |On death|------------------------------------------------------------------------------------------------------------
+def on_death_slime(self, entities, level):
+    # Create 2 new slime with a smaller thiccness
+    thick = self.thiccness * 0.75
+    if thick >= 12:
+        for x in range(2):
+            entities["entities"].append(Entity(
+                enemy_repertory["Slime"], team=self.team, pos=[self.pos[0], self.pos[1]], start_angle=self.angle))
+            entities["entities"][-1].thiccness = thick
+            entities["entities"][-1].max_health = 90 * thick / 40
+            entities["entities"][-1].health = 90 * thick / 40
 
-        # Check if something is in range
-        # if random.randint(0, self.weapon.fire_rate) == 0 and Fun.check_point_in_circle(
-        #         self.weapon.range * 0.8, self.pos[0], self.pos[1], target[0], target[1]) and not wall_in:
-        #     self.input["Shoot"] = True
-        # if self.weapon.weapon_class == "Melee":
-        #     if Fun.distance_between(target, self.pos) <= self.weapon.range:
-        #         # combo_stage = self.free_var[self.weapon.name]["Combo stage"]
-        #         self.input["Shoot"] = self.free_var[self.weapon.name]["Press time"] < 40  # - 10 * combo_stage
+            entities["entities"][-1].vel = Fun.move_with_vel_angle([0, 0], 2, 360 * random.random())
+        Fun.play_sound("Slime split")
 
-    entity_spread_apart(self, entities)
+        Particles.random_particle_2_circle(entities, self.pos, random.uniform(4, 7), 20, 90,
+                                     colour=(13, 101, 61), size=8 * thick / 40, angle_mod=random.randint(45, 90))
+    else:
+        Fun.play_sound("Slime death")
 
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
 
-# |Repertories|---------------------------------------------------------------------------------------------------------
+def on_death_snake(self, entities, bullets):
+    Fun.play_sound("Snake split")
+    self.name = "Dead"
+    self.free_var["Pos history"] = []
+
+
+def on_death_fish(self, entities, bullets):
+    entities["particles"].append(
+        Particles.FloatingText(self.pos, 18, f"{self.name} defeated", (255, 255, 255),
+                         alpha_growth=10, alpha_ungrowth=10))
+
+
+def on_death_kamikaze(self, entities, bullets):
+    Bullets.spawn_bullet(
+        self, entities, Bullets.ExplosionSecondary,
+        [self.pos[0], self.pos[1]], 0, [0, 5, 7, 10, {"Duration": 5, "Growth": 5, "Damage mod": 1}])
+
+
+import Entity_Input_Funcs
+import Entity_Act_Funcs
+
 ENEMY_NO_OWNER = Entity({"name": "Nest Trooper",
          "faction": "FAC-1",
          "type": "VIP",
@@ -6496,6 +3049,7 @@ ENEMY_NO_OWNER = Entity({"name": "Nest Trooper",
          "on death": "none",
          "free var": {}
          }, team="Enemies", pos=[0, 0], start_angle=0)
+# |Repertories|---------------------------------------------------------------------------------------------------------
 # Entity stats
 H_LO, H_LM, H_MO, H_MH, H_HO = 60, 90, 130, 170, 200        # Max Health
 A_LO, A_LM, A_MO, A_MH, A_HO = 40, 60, 90, 120, 140         # Max Armour
@@ -6545,7 +3099,7 @@ player_repertory = {
         # Weapons
         "weapon": "Saloum Mk-2", "skills": ["Gauntlet Punch", "Beast Mode"],
         # AI
-        "func input": test_ally_input, "func act": player_act, "func draw": player_draw, "on death": lord_on_death,
+        "func input": "test_ally_input", "func act": "player_act", "func draw": player_draw, "on death": lord_on_death,
         "targeting range": R_MH, "targeting angle": D_LM, "wall hack": False,
         "driving": DRIVE_MO,
         "free var": {"Ally waypoint": [0, 0]}
@@ -6562,7 +3116,7 @@ player_repertory = {
         # Weapons
         "weapon": "GunBlade", "skills": ["Stun Kick", "Mega Buff" ],
         # AI
-        "func input": test_ally_input, "func act": player_act, "func draw": player_draw, "on death": "none",
+        "func input": "test_ally_input", "func act": "player_act", "func draw": player_draw, "on death": "none",
         "targeting range": R_HO, "targeting angle": D_MO, "stealth mod": S_MO, "stealth counter": C_MH,
         "wall hack": False,
         "driving": DRIVE_MO,
@@ -6578,7 +3132,7 @@ player_repertory = {
         # Weapons
         "weapon": "Jeanne's Family Shotgun", "skills": ["Building", "All Guns Blazing"],
         # AI
-        "func input": test_ally_input, "func act": player_act, "func draw": player_draw, "on death": "none",
+        "func input": "test_ally_input", "func act": "player_act", "func draw": player_draw, "on death": "none",
         "targeting range": R_MO, "targeting angle": D_MH, "stealth mod": S_LM, "stealth counter": C_MO,
         "wall hack": False,
         "driving": DRIVE_HO,
@@ -6596,7 +3150,7 @@ player_repertory = {
         # Weapons
         "weapon": "St-Maurice", "skills": ["Cardboard box", "Detect Targets"],
         # AI
-        "func input": test_ally_input, "func act": player_act, "func draw": player_draw, "on death": "none",
+        "func input": "test_ally_input", "func act": "player_act", "func draw": player_draw, "on death": "none",
         "targeting range": R_HO * 1.5, "targeting angle": D_LM, "stealth mod": S_MH, "stealth counter": C_HO,
         "wall hack": False,
         "driving": DRIVE_LO,
@@ -6615,7 +3169,7 @@ player_repertory = {
         # Weapons
         "weapon": "Chain Axe", "skills": ["Tail Swipe", "Smoke Screen"],
         # AI
-        "func input": test_ally_input, "func act": player_act, "func draw": player_draw, "on death": "none",
+        "func input": "test_ally_input", "func act": "player_act", "func draw": player_draw, "on death": "none",
         "targeting range": R_MO, "targeting angle": D_HO, "stealth mod": S_HO, "stealth counter": C_HO,
         "driving": DRIVE_LM,
         "wall hack": False,
@@ -6635,7 +3189,7 @@ player_repertory = {
         # Weapons
         "weapon": "Epicurean Medic Rifle", "skills": ["Discharge", "Robot Fuck Off"],
         # AI
-        "func input": jester_input, "func act": player_act, "func draw": player_draw, "on death": "none",
+        "func input": "jester_input", "func act": "player_act", "func draw": player_draw, "on death": "none",
         "targeting range": R_LM, "targeting angle": D_MH, "stealth mod": S_LM, "stealth counter": C_HO * 1.2,
         "wall hack": False,
         "driving": DRIVE_LM,
@@ -6655,7 +3209,7 @@ player_repertory = {
         # Weapons
         "weapon": "Type 41 SMG", "skills": ["Armour Breaker", "Last Stand"],
         # AI
-        "func input": test_ally_input, "func act": player_act, "func draw": player_draw, "on death": "condor_on_death",
+        "func input": "test_ally_input", "func act": "player_act", "func draw": player_draw, "on death": "condor_on_death",
         "targeting range": R_MO, "targeting angle": D_MO, "stealth mod": S_LO, "stealth counter": C_LM,
         "driving": DRIVE_MH,
         "wall hack": False,
@@ -6704,8 +3258,8 @@ player_repertory = {
         "sprites": "Sprites/Player/Curtis.png",
 
         "skills": ["Kick", "Le Mat"],
-        "func input": test_ally_input,
-        "func act": player_act,
+        "func input": "test_ally_input",
+        "func act": "player_act",
         "func draw": player_draw,
         "on death": none,
         "free var": {"Ally waypoint": [0, 0]}
@@ -6730,8 +3284,8 @@ player_repertory = {
         # Skills
         "skills": ["Flame Canyon", "Flame Burst"],
         # AI
-        "func input": test_ally_input,
-        "func act": player_act,
+        "func input": "test_ally_input",
+        "func act": "player_act",
         "func draw": player_draw,
         "on death": "none",
         "targeting range": 750,
@@ -6756,8 +3310,8 @@ player_repertory = {
         # Weapons
         "weapon": "Mark's Rifle", "skills": ["Target Locator", "Smoke Grenade"],
         # AI
-        "func input": test_ally_input,
-        "func act": player_act,
+        "func input": "test_ally_input",
+        "func act": "player_act",
         "func draw": player_draw,
         "on death": "none",
         "targeting range": 750,
@@ -6783,8 +3337,8 @@ player_repertory = {
         "weapon": "Vivianne's Rifle",
         "skills": ["Rat Shot", "Reaper Rounds"],
         # AI
-        "func input": test_ally_input,
-        "func act": vivianne_act,
+        "func input": "test_ally_input",
+        "func act": "vivianne_act",
         "func draw": player_draw,
         "on death": "none",
         "targeting range": 750,
@@ -6792,6 +3346,48 @@ player_repertory = {
         "wall hack": False,
         "free var": {"Ally waypoint": [0, 0], "Summon cooldown time": 360, "Summon cooldown": 0, "Summon limit": 1,
                      "Summon pool": [], "Active summons": []}
+    },
+
+    "Curtis (Vertical)": {
+        "name": "Curtis",
+        "wall hack": False,
+        "targeting angle": 90, "targeting range": 512,
+        "health": 200,
+        "armour": 50,
+        "damage resistances": CU_RESIT,
+        "weapon": "Standard Shotgun",
+
+        "thickness": 16,
+        "vel max": 6.25,
+        "speed": 1.17,
+        "friction": 1.15,
+        "dash": {"speed": DS_HO, "i-frames": 24, "charge": 25},
+
+        "sprites": "Sprites/Player/Curtis.png",
+
+        "skills": ["Kick", "Le Mat"],
+        "func input": "test_ally_input",
+        "func act": "player_act_vertical",
+        "func draw": player_draw,
+        "on death": none,
+        "free var": {
+            "Ally waypoint": [0, 0],
+            "Vertical phys": {
+                "Time jumping": 0,  # How long the player has been jumping for
+                "Stored speed": 0,  # How long the player pressed down to jump. Goes down after accel window. Give speed to the jump as it goes down
+                "Jumping": False,
+
+                "Accel Window": 4, # how long the player can press to jump higher
+                "Jump speed": 2,
+                "Fall speed": 0.6,   # Kicks in when player has no more stored speed
+                "Ground friction": 1.15,
+                "Air friction": 0.4,
+
+                "Dash mod": 0.6,
+                "Dash count": 0,
+                "Dash limit": 2
+            }
+        }
     },
 
     "Sand Buggy": {
@@ -6833,8 +3429,8 @@ player_repertory = {
         "skills": [],
 
         # AI
-        "func input": birna_input,
-        "func act": vivianne_summons_act,
+        "func input": "birna_input",
+        "func act": "vivianne_summons_act",
         "func draw": birna_draw,
         "on death": "vivianne_summons_on_death",
         "targeting range": 750,
@@ -6859,8 +3455,8 @@ player_repertory = {
         "skills": [],
 
         # AI
-        "func input": elektra_input,
-        "func act": vivianne_summons_act,
+        "func input": "elektra_input",
+        "func act": "vivianne_summons_act",
         "func draw": elektra_draw,
         "on death": "vivianne_summons_on_death",
         "targeting range": 750,
@@ -6887,8 +3483,8 @@ player_repertory = {
         "skills": [],
 
         # AI
-        "func input": agatha_input,
-        "func act": vivianne_summons_act,
+        "func input": "agatha_input",
+        "func act": "vivianne_summons_act",
         "func draw": player_draw,
         "on death": "vivianne_summons_on_death",
         "targeting range": 750,
@@ -6913,8 +3509,8 @@ player_repertory = {
         "skills": [],
 
         # AI
-        "func input": azura_input,
-        "func act": vivianne_summons_act,
+        "func input": "azura_input",
+        "func act": "vivianne_summons_act",
         "func draw": player_draw,
         "on death": "vivianne_summons_on_death",
         "targeting range": 750,
@@ -6939,8 +3535,8 @@ player_repertory = {
         "skills": [],
 
         # AI
-        "func input": m_input,
-        "func act": vivianne_summons_act,
+        "func input": "m_input",
+        "func act": "vivianne_summons_act",
         "func draw": player_draw,
         "on death": "vivianne_summons_on_death",
         "targeting range": 750,
@@ -6965,8 +3561,8 @@ player_repertory = {
         "skills": [],
 
         # AI
-        "func input": sierra_input,
-        "func act": vivianne_summons_act,
+        "func input": "sierra_input",
+        "func act": "vivianne_summons_act",
         "func draw": player_draw,
         "on death": "vivianne_summons_on_death",
         "targeting range": 750,
@@ -6992,8 +3588,8 @@ player_repertory = {
         "skills": [],
 
         # AI
-        "func input": makoto_input,
-        "func act": vivianne_summons_act,
+        "func input": "makoto_input",
+        "func act": "vivianne_summons_act",
         "func draw": player_draw,
         "on death": "vivianne_summons_on_death",
         "targeting range": 750,
@@ -7740,7 +4336,7 @@ enemy_repertory = {
         # Weapons
         "weapon": "Saloum Mk-2", "skills": ["Gauntlet Punch", "Beast Mode"],
         # AI
-        "func input": lord_boss_input, "func act": player_act, "func draw": enemy_draw_basic, "on death": thr_1_on_death,
+        "func input": "lord_boss_input", "func act": "player_act", "func draw": enemy_draw_basic, "on death": thr_1_on_death,
         "targeting range": R_MH, "targeting angle": D_LM, "wall hack": False,
         "driving": DRIVE_MO,
         "free var": {"Ally waypoint": [0, 0], "IS BOSS": True}
@@ -7757,7 +4353,7 @@ enemy_repertory = {
         # Weapons
         "weapon": "GunBlade", "skills": ["Stun Kick", "Mega Buff"],
         # AI
-        "func input": emperor_boss_input, "func act": player_act, "func draw": emperor_boss_draw, "on death": thr_1_on_death,
+        "func input": "emperor_boss_input", "func act": "player_act", "func draw": emperor_boss_draw, "on death": thr_1_on_death,
         "targeting range": R_HO, "targeting angle": D_MO, "stealth mod": S_MO, "stealth counter": C_MH,
         "wall hack": True,
         "driving": DRIVE_MO,
@@ -7773,7 +4369,7 @@ enemy_repertory = {
         # Weapons
         "weapon": "Jeanne's Family Shotgun", "skills": ["Building", "All Guns Blazing"],
         # AI
-        "func input": wizard_boss_input, "func act": player_act, "func draw": enemy_draw_basic, "on death": thr_1_on_death,
+        "func input": "wizard_boss_input", "func act": "player_act", "func draw": enemy_draw_basic, "on death": thr_1_on_death,
         "targeting range": R_MO, "targeting angle": D_MH, "stealth mod": S_LM, "stealth counter": C_MO,
         "wall hack": True,
         "driving": DRIVE_HO,
@@ -7791,7 +4387,7 @@ enemy_repertory = {
         # Weapons
         "weapon": "St-Maurice", "skills": ["Cardboard box", "Detect Targets"],
         # AI
-        "func input": sovereign_boss_input, "func act": player_act, "func draw": enemy_draw_basic, "on death": thr_1_on_death,
+        "func input": "sovereign_boss_input", "func act": "player_act", "func draw": enemy_draw_basic, "on death": thr_1_on_death,
         "targeting range": R_HO * 1.5, "targeting angle": D_LM, "stealth mod": S_MH, "stealth counter": C_HO,
         "wall hack": True,
         "driving": DRIVE_LO,
@@ -7810,7 +4406,7 @@ enemy_repertory = {
         # Weapons
         "weapon": "Chain Axe", "skills": ["Tail Swipe", "Smoke Screen"],
         # AI
-        "func input": duke_boss_input, "func act": player_act, "func draw": enemy_draw_basic, "on death": thr_1_on_death,
+        "func input": "duke_boss_input", "func act": "player_act", "func draw": enemy_draw_basic, "on death": thr_1_on_death,
         "targeting range": R_MO, "targeting angle": D_HO, "stealth mod": S_HO, "stealth counter": C_HO,
         "driving": DRIVE_LM,
         "wall hack": True,
@@ -7830,7 +4426,7 @@ enemy_repertory = {
         # Weapons
         "weapon": "Epicurean Medic Rifle", "skills": ["Discharge", "Robot Fuck Off"],
         # AI
-        "func input": jester_boss_input, "func act": player_act, "func draw": enemy_draw_basic, "on death": thr_1_on_death,
+        "func input": "jester_boss_input", "func act": "player_act", "func draw": enemy_draw_basic, "on death": thr_1_on_death,
         "targeting range": R_LM, "targeting angle": D_MH, "stealth mod": S_LM, "stealth counter": C_HO * 1.2,
         "wall hack": True,
         "driving": DRIVE_LM,
@@ -7850,7 +4446,7 @@ enemy_repertory = {
         # Weapons
         "weapon": "Type 41 SMG", "skills": ["Armour Breaker", "Last Stand"],
         # AI
-        "func input": condor_boss_input, "func act": player_act, "func draw": enemy_draw_basic, "on death": condor_boss_on_death,
+        "func input": "condor_boss_input", "func act": "player_act", "func draw": enemy_draw_basic, "on death": condor_boss_on_death,
         "targeting range": R_MO, "targeting angle": D_MO, "stealth mod": S_LO, "stealth counter": C_LM,
         "driving": DRIVE_MH,
         "wall hack": True,
@@ -7885,9 +4481,915 @@ enemy_repertory = {
          }
          },
     # |No Name TSS|-----------------------------------------------------------------------------------------------------
-    # Street Gangs of Zoar
+    "Fish": {
+        'name': 'Fish',
+        'faction': 'Test',
+        'type': 'long range',
+
+        'targeting range': 0,
+        'targeting angle': 0,
+        'wall hack': False,
+
+        'health': 120,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 5,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Fish weapon',
+
+        'func input': 'enemy_input_fish',
+        'func act': 'fish_act',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Fish.png',
+        'on death': 'on_death_fish',
+        'free var': {'Health last frame': 120},
+    },
+    "Fish 2": {
+        'name': 'Fish 2',
+        'faction': 'Test',
+        'type': 'long range',
+
+        'targeting range': 224,
+        'targeting angle': 100,
+        'wall hack': False,
+
+        'health': 120,
+        'armour': 0,
+        'damage resistances': {'Physical': 0, 'Fire': 0, 'Explosion': 0, 'Energy': 0, 'Melee': 0},
+
+        'thickness': 15,
+        'vel max': 5, 'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Fish weapon 2',
+
+        'func input': 'enemy_input_fish_2',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Fish.png',
+        'on death': 'on_death_fish',
+        'free var': {'Stat to change': 'Speed'},
+    },
+
     # Morgan's Pirates
+    "Pirate Swordsman": {
+        'name': 'Pirate',
+        'faction': 'Pirate',
+        'type': 'close range',
+
+        'targeting range': 400,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 45,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 4,
+        'speed': 1.5,
+        'friction': 1.5,
+        'weapon': 'Pirate Sword',
+
+        'func input': 'enemy_input_crazies_type_1',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Pirate Swordman.png',
+        'on death': 'none',
+        'free var': {}
+    },
+    "Pirate Axeman": {
+        'name': 'Pirate',
+        'faction': 'Pirate',
+        'type': 'close range',
+
+        'targeting range': 400,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 90,
+        'armour': 20,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 3,
+        'speed': 1.5,
+        'friction': 1.5,
+        'weapon': 'Pirate Axe',
+
+        'func input': 'enemy_input_crazies_type_1',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Pirate Axeman.png',
+        'on death': 'none',
+        'free var': {}
+    },
+    "Pirate Grunt": {
+        'name': 'Pirate',
+        'faction': 'Pirate',
+        'type': 'close range',
+
+        'targeting range': 450,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 45,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 3,
+        'speed': 1.5,
+        'friction': 1.5,
+        'weapon': 'Pirate Semi-auto',
+
+        'func input': 'enemy_input_grunt_type_1',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Pirate Grunt.png',
+        'on death': 'none',
+        'free var': {}},
+    "Pirate Shotgunner": {
+        'name': 'Pirate',
+        'faction': 'Pirate',
+        'type': 'close range',
+
+        'targeting range': 400,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 40,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 6,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Pirate Shotgun',
+
+        'func input': 'enemy_input_shotgunner_type_1',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Pirate Shotgunner.png',
+        'on death': 'none',
+        'free var': {},
+    },
+    "Pirate Defensive Shotgunner": {
+        'name': 'Pirate',
+        'faction': 'Pirate',
+        'type': 'close range',
+
+        'targeting range': 300,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 40,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 6,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Pirate Shotgun',
+
+        'func input': 'enemy_input_shotgunner_type_2',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Pirate Shotgunner.png',
+        'on death': 'none',
+        'free var': {}, },
+    "Pirate Sniper": {
+        'name': 'Pirate',
+        'faction': 'Pirate',
+        'type': 'long range',
+
+        'targeting range': 600,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 40,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+        'thickness': 15, 'vel max': 3, 'speed': 1.25, 'friction': 1.25,
+        'weapon': 'Pirate Rifle',
+
+        'func input': 'enemy_input_sniper_type_1',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Pirate Sniper.png',
+        'on death': 'none',
+        'free var': {'Startup lag': 0, 'Startup time': 120}
+},
+    "Pirate Railgunner": {
+        'name': 'Pirate',
+        'faction': 'Pirate',
+        'type': 'long range',
+
+        'targeting range': 600,
+        'targeting angle': 15,
+        'wall hack': True,
+
+        'health': 40,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 3,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Pirate Railgun',
+
+        'func input': 'enemy_input_sniper_type_2',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Pirate Railgunner.png',
+        'on death': 'none',
+        'free var': {'Startup lag': 0, 'Startup time': 120},
+    },
+    "Pirate Demolisher": {
+        'name': 'Pirate',
+        'faction': 'Pirate',
+        'type': 'long range',
+
+        'targeting range': 600,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 80,
+        'armour': 0,
+        'damage resistances': {'Physical': 0.75, 'Fire': 1.5, 'Explosion': 0.125, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 5,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Pirate RocketL.',
+
+        'func input': 'enemy_input_sniper_type_1',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Pirate Demolisher.png',
+        'on death': 'none',
+        'free var': {'Startup lag': 0, 'Startup time': 120}
+    },
+    "Pirate Flamer": {
+        'name': 'Pirate',
+        'faction': 'Pirate',
+        'type': 'close range',
+
+        'targeting range': 550,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 40,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 5,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Pirate Flame Thrower',
+
+        'func input': 'enemy_input_flamer_type_1',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Pirate Flamer.png',
+        'on death': 'none',
+        'free var': {},
+    },
+    "Pirate Buffer 1": {
+        'name': 'Pirate',
+        'faction': 'Pirate',
+        'type': 'long range',
+
+        'targeting range': 600,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 50,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 5,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Pirate Handgun',
+
+        'func input': 'enemy_input_buffer_type_1',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Pirate Buffer 1.png',
+        'on death': 'none',
+        'free var': {},
+    },
+    "Pirate Blunderbusser": {
+        'name': 'Pirate',
+        'faction': 'Pirate',
+        'type': 'close range',
+
+        'targeting range': 450,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 80,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 5,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Pirate Blunderbuss',
+
+        'func input': 'enemy_input_buffer_type_1',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Pirate Blunderbusser.png',
+        'on death': 'none',
+        'free var': {},
+    },
+
     # NEST
+    "Nest Trooper": {
+        'name': 'Nest Trooper',
+        'faction': 'Nest',
+        'type': 'close range',
+
+        'targeting range': 450,
+        'targeting angle': 25,
+        'wall hack': False,
+
+        'health': 40,
+        'armour': 20,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 16,
+        'vel max': 3.25,
+        'speed': 1.5,
+        'friction': 1.5,
+        'weapon': 'Nest Machine Gun',
+
+        'func input': 'enemy_input_nest_trooper',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Nest Trooper.png',
+        'on death': 'none',
+        'free var': {'Formation': ['None', 0]}
+    },
+    "Nest Shotgunner": {
+        'name': 'Nest Shotgunner',
+        'faction': 'Nest',
+        'type': 'close range',
+
+        'targeting range': 450,
+        'targeting angle': 25,
+        'wall hack': False,
+
+        'health': 40,
+        'armour': 20,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 16,
+        'vel max': 3.25,
+        'speed': 1.5,
+        'friction': 1.5,
+        'weapon': 'Nest Shotgun',
+
+        'func input': 'enemy_input_nest_trooper',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Nest Shotgunner.png',
+        'on death': 'none',
+        'free var': {'Formation': ['None', 0]}
+    },
+    "Nest Sniper": {
+        'name': 'Nest Sniper',
+        'faction': 'Nest',
+        'type': 'long range',
+
+        'targeting range': 600,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 40,
+        'armour': 10,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 16,
+        'vel max': 3,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Nest Rifle',
+
+        'func input': 'enemy_input_nest_sniper',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Nest Sniper.png',
+        'on death': 'none',
+        'free var': {'Startup lag': 0, 'Startup time': 180, 'Formation': ['None', 0]}
+    },
+    "Nest Shield": {
+        'name': 'Nest Shield',
+        'faction': 'Nest',
+        'type': 'close range',
+
+        'targeting range': 450,
+        'targeting angle': 25,
+        'wall hack': False,
+
+        'health': 50,
+        'armour': 30,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 16,
+        'vel max': 3.25,
+        'speed': 1.5,
+        'friction': 1.5,
+        'weapon': 'Nest Riot Pistol',
+
+        'func input': 'enemy_input_nest_shield',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Nest Shield.png',
+        'on death': 'none',
+        'free var': {'Formation': ['None', 0]}
+    },
+    "Nest Commander": {
+        'name': 'Nest Commander',
+        'faction': 'Nest',
+        'type': 'close range',
+
+        'targeting range': 450,
+        'targeting angle': 25,
+        'wall hack': False,
+
+        'health': 60,
+        'armour': 10,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 16,
+        'vel max': 2.75,
+        'speed': 1.5,
+        'friction': 1.5,
+        'weapon': 'Nest Commander PDW',
+
+        'func input': 'enemy_input_nest_commander',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Nest Commander.png',
+        'on death': 'none',
+        'free var': {'Formation': ['None', 0]}
+    },
+    "Nest Flamer": {
+        'name': 'Nest Flamer',
+        'faction': 'Nest',
+        'type': 'close range',
+
+        'targeting range': 450,
+        'targeting angle': 25,
+        'wall hack': False,
+
+        'health': 40,
+        'armour': 20,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 16,
+        'vel max': 1.25,
+        'speed': 0.25,
+        'friction': 0.21,
+        'weapon': 'Nest Flame Thrower',
+
+        'func input': 'enemy_input_nest_flamer',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Nest Flamer.png',
+        'on death': 'none',
+        'free var': {'Formation': ['None', 0]}
+    },
+    "Nest Heavy Trooper": {
+        'name': 'Nest Heavy Trooper',
+        'faction': 'Nest',
+        'type': 'close range',
+
+        'targeting range': 450,
+        'targeting angle': 25,
+        'wall hack': False,
+
+        'health': 80,
+        'armour': 30,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 16,
+        'vel max': 2,
+        'speed': 0.125,
+        'friction': 0.115,
+        'weapon': 'Nest Heavy Machine Gun',
+
+        'func input': 'enemy_input_nest_trooper',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Nest Heavy Trooper.png',
+        'on death': 'none',
+        'free var': {'Formation': ['None', 0]}
+    },
+    "Nest Railgunner": {
+        'name': 'Nest Railgunner',
+        'faction': 'Nest',
+        'type': 'long range',
+
+        'targeting range': 600,
+        'targeting angle': 15,
+        'wall hack': True,
+
+        'health': 40,
+        'armour': 30,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 16,
+        'vel max': 3,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Nest Railgun',
+
+        'func input': 'enemy_input_nest_sniper',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Nest Railgunner.png',
+        'on death': 'none',
+        'free var': {'Startup lag': 0, 'Startup time': 180, 'Formation': ['None', 0]}
+    },
+    "Nest Demolisher": {
+        'name': 'Nest Demolisher',
+        'faction': 'Nest',
+        'type': 'close range',
+
+        'targeting range': 450,
+        'targeting angle': 25,
+        'wall hack': False,
+
+        'health': 40,
+        'armour': 30,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 16,
+        'vel max': 3.25,
+        'speed': 1.5,
+        'friction': 1.5,
+        'weapon': 'Nest Grenade Launcher',
+
+        'func input': 'enemy_input_nest_demolisher',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Nest Demolisher.png',
+        'on death': 'none',
+        'free var': {'Formation': ['None', 0]}
+    },
+    "Nest Bunker": {
+        'name': 'Nest Bunker',
+        'faction': 'Nest',
+        'type': 'close range',
+
+        'targeting range': 200,
+        'targeting angle': 35,
+        'wall hack': False,
+
+        'health': 40,
+        'armour': 30,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 16,
+        'vel max': 3.25,
+        'speed': 1.5,
+        'friction': 1.5,
+        'weapon': 'Nest Heavy Machine Gun Bunker',
+
+        'func input': 'enemy_input_nest_bunker',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Nest Bunker.png',
+        'on death': 'none',
+        'free var': {}
+    },
+    "Nest Cloaker": {
+        'name': 'Nest Cloaker',
+        'faction': 'Nest',
+        'type': 'close range',
+
+        'targeting range': 450,
+        'targeting angle': 40,
+        'wall hack': False,
+
+        'health': 35,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 16,
+        'vel max': 2.75,
+        'speed': 1.5,
+        'friction': 1.5,
+        'weapon': 'Nest Knife',
+
+        'func input': 'enemy_input_nest_cloaker',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Nest Cloaker.png',
+        'on death': 'none',
+        'free var': {'Formation': ['None', 0]}
+    },
+
+    # Street Gangs of Zoar
+    "Gang Pipe": {
+        'name': 'Gang',
+        'faction': 'Street Gang',
+        'type': 'close range',
+
+        'targeting range': 400,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 45,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 3,
+        'speed': 1.5,
+        'friction': 1.5,
+        'weapon': 'Gang Pipe',
+
+        'func input': 'enemy_input_crazies_type_1',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Gang Pipe.png',
+        'on death': 'none',
+        'free var': {},
+    },
+    "Gang Grunt": {
+        'name': 'Gang',
+        'faction': 'Street Gang',
+        'type': 'close range',
+
+        'targeting range': 450,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 45,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 3,
+        'speed': 1.5,
+        'friction': 1.5,
+        'weapon': 'Gang Semi-auto',
+
+        'func input': 'enemy_input_grunt_type_1',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Gang Grunt.png',
+        'on death': 'none',
+        'free var': {},
+    },
+    "Gang Shotgunner": {
+        'name': 'Gang',
+        'faction': 'Street Gang',
+        'type': 'close range',
+
+        'targeting range': 400,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 40,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 5,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Gang Shotgun',
+
+        'func input': 'enemy_input_grunt_type_1',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Gang Shotgunner.png',
+        'on death': 'none',
+        'free var': {}, },
+    "Gang Defensive Shotgunner": {
+        'name': 'Gang',
+        'faction': 'Street Gang',
+        'type': 'close range',
+
+        'targeting range': 300,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 40,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+        'thickness': 15,
+        'vel max': 5,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Gang Shotgun',
+
+        'func input': 'enemy_input_shotgunner_type_2',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Gang Shotgunner.png',
+        'on death': 'none',
+        'free var': {}
+    },
+    "Gang Sniper": {
+        'name': 'Gang',
+        'faction': 'Street Gang',
+        'type': 'long range',
+
+        'targeting range': 500,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': 40,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+        'thickness': 15,
+        'vel max': 5,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Gang Rifle',
+
+        'func input': 'enemy_input_sniper_type_1',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/Gang Sniper.png',
+        'on death': 'none',
+        'free var': {'Startup lag': 0, 'Startup time': 90},
+    },
+
+    # Anomaly
+    "Monolith": {
+        'name': 'Monolith',
+        'faction': 'Anomalies',
+        'type': 'long range',
+
+        'targeting range': 320,
+        'targeting angle': 3,
+        'wall hack': False,
+
+        'health': 90,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 5,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Monolith',
+
+        'func input': 'enemy_input_monolith',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/A1.png',
+        'on death': 'none',
+        'free var': {}
+    },
+    "Eye": {
+        'name': 'Eye',
+        'faction': 'Anomalies',
+        'type': 'long range',
+
+        'targeting range': 320,
+        'targeting angle': 3,
+        'wall hack': True,
+
+        'health': 180,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 5,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Eye',
+
+        'func input': 'enemy_input_eye',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/A2.png',
+        'on death': 'none',
+        'free var': {}
+    },
+    "Void": {
+        'name': 'Void',
+        'faction': 'Anomalies',
+        'type': 'long range',
+
+        'targeting range': 9223372036854775807,
+        'targeting angle': 180,
+        'wall hack': True,
+
+        'health': 80,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 5,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Void',
+
+        'func input': 'enemy_input_void',
+        'func act': 'void_act',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/A3.png',
+        'on death': 'none',
+        'free var': {}
+    },
+    "Spook": {
+        'name': 'Spook',
+        'faction': 'Anomalies',
+        'type': 'long range',
+
+        'targeting range': 9223372036854775807,
+        'targeting angle': 180,
+        'wall hack': True,
+
+        'health': 1,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        'vel max': 5,
+        'speed': 1.25,
+        'friction': 1.25,
+        'weapon': 'Spook',
+
+        'func input': 'enemy_input_void',
+        'func act': 'void_act',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/SPOOK.png',
+        'on death': 'none',
+        'free var': {},
+    },
+    "Slime": {
+        'name': 'Slime',
+        'faction': 'Anomalies',
+        'type': 'long range',
+
+        'targeting range': 960,
+        'targeting angle': 360,
+        'wall hack': False,
+
+        'health': 90,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 40,
+        'vel max': 4,
+        'speed': 0.015,
+        'friction': 0.00125,
+        'weapon': 'Eye',
+
+        'func input': 'enemy_input_slime',
+        'func act': 'enemy_act_type_1',
+        'func draw': 'enemy_draw_slime',
+        'sprites': 'Sprites/Enemies/A4.png',
+        'on death': 'on_death_slime',
+        'free var': {}
+    },
+    "Snake": {
+        'name': 'Snake',
+        'faction': 'Anomalies',
+        'type': 'close range',
+
+        'targeting range': 9223372036854775807,
+        'targeting angle': 360,
+        'wall hack': True,
+
+        'health': 100,
+        'armour': 0,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 16,
+        'vel max': 4,
+        'speed': 4,
+        'friction': 1.5,
+        'weapon': 'Snake',
+
+        'func input': 'enemy_input_snake',
+        'func act': 'snake_act',
+        'func draw': 'enemy_draw_basic',
+        'sprites': 'Sprites/Enemies/A5.png',
+        'on death': 'on_death_snake',
+        'free var': {'Move Angle': 0, 'Delay mod': 0, 'Pos history': []}
+    },
+
     # CommieBots
     "CommieBot.Hammer":
         {"name": "CommieBot.Hammer",
@@ -8082,7 +5584,7 @@ def fake_render(boss, WIN, CLOCK):
         # boss_to_draw.pos[0] += 1
         # boss_to_draw.pos[1] += 1
         Fun.scale_render(WIN, surface_to_draw, CLOCK)
-        pg.display.update()
+        pg.display.flip()
         CLOCK.tick(60)
         if not screenshot_taken:
             Fun.screenshot(WIN)
@@ -8121,8 +5623,30 @@ def fake_render_mech_parts(boss, WIN, CLOCK):
         # boss_to_draw.pos[0] += 1
         # boss_to_draw.pos[1] += 1
         Fun.scale_render(WIN, surface_to_draw, CLOCK)
-        pg.display.update()
+        pg.display.flip()
         CLOCK.tick(60)
         if not screenshot_taken:
             Fun.screenshot(WIN)
             screenshot_taken = True
+
+
+#
+
+everyone = [
+    # 'Manager', 'Body Guard', 'Heavy Sniper', 'Radar Operator', 'Missile Operator', 'Marksman', 'Enforcer', 'Armed Shield Generator', 'AA Laser', 'Drone builder', 'Missile Battery', 'Shield Generator', 'Energy Generator', 'Drone',
+    # 'Sculptor', 'Skirmisher', 'BoomStick', 'Smoker', 'Snare', 'Crusher', 'Assassin', 'Hover Tank', 'Gilgamesh',
+    # 'Infantry', 'Flamer', 'Spotter', 'Artilleryman', 'Grenadier', 'Bulwark', 'Commanding Officer', 'Super Bulwark', 'Fire Support Mech', 'Attack Helicopter',
+    # 'Rigel', 'Curtis',
+    # 'Lord', 'Emperor', 'Wizard', 'Sovereign', 'Duke', 'Jester', 'Condor',
+    # 'Fish', 'Fish 2',
+
+    # 'Pirate Swordsman', 'Pirate Axeman', 'Pirate Grunt', 'Pirate Shotgunner', 'Pirate Defensive Shotgunner', 'Pirate Sniper', 'Pirate Railgunner', 'Pirate Demolisher', 'Pirate Flamer', 'Pirate Buffer 1', 'Pirate Blunderbusser',
+
+    # 'Nest Trooper', 'Nest Shotgunner', 'Nest Sniper', 'Nest Shield', 'Nest Commander', 'Nest Flamer', 'Nest Heavy Trooper', 'Nest Railgunner', 'Nest Demolisher', 'Nest Bunker', 'Nest Cloaker',
+
+    # 'Gang Pipe', 'Gang Grunt', 'Gang Shotgunner', 'Gang Defensive Shotgunner', 'Gang Sniper',
+
+    # 'Monolith', 'Eye','Void', 'Spook', 'Slime', 'Snake',
+
+    # 'CommieBot.Hammer', 'CommieBot.Sickle', 'CommieBot.Kamikaze', 'CommieBot.Rifle', 'CommieBot.Molotov'
+]

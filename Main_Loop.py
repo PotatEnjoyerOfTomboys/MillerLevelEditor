@@ -124,7 +124,7 @@ def main_loop(WIN, CLOCK, entities, level, party_info, scrolling, scrolling_targ
             if particle.duration <= 0:
                 entities["UI particles"].pop(count)
 
-        pg.display.update()
+        pg.display.flip()
         # |Pause menu|------------------------------------------------------------------------------------------
         if Fun.SYSTEM_CONTROLS_INPUT["Pause"] or force_pause:
             gaming = not Fun.settings_menu(WIN, CLOCK, also_pause=True)
@@ -258,7 +258,7 @@ def main_loop_no_party(WIN, CLOCK, entities, level, scrolling, scrolling_target_
             if particle.duration <= 0:
                 entities["UI particles"].pop(count)
 
-        pg.display.update()
+        pg.display.flip()
         # |Pause menu|------------------------------------------------------------------------------------------
         if Fun.SYSTEM_CONTROLS_INPUT["Pause"] or force_pause:
             gaming = not Fun.settings_menu(WIN, CLOCK, also_pause=True)

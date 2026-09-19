@@ -7,14 +7,17 @@ import sys  # Cool video https://www.youtube.com/watch?v=2Yj5mmKWukw
 pg.mixer.pre_init()
 pg.init()
 pg.joystick.init()
+
+
 WIN_WIDTH, WIN_HEIGHT = 630, 450
 ORIGINAL_WIDTH, ORIGINAL_HEIGHT = WIN_WIDTH, WIN_HEIGHT
-WIN = pg.display.set_mode((WIN_WIDTH, WIN_HEIGHT), pg.RESIZABLE)
+WIN = pg.display.set_mode((WIN_WIDTH, WIN_HEIGHT), pg.RESIZABLE, pg.OPENGL | pg.DOUBLEBUF)
 pg.display.set_icon(pg.image.load(os.path.join("Sprites/Icon.ico")))
 pg.display.set_caption("THR-1's Assault")
 
 CLOCK = pg.time.Clock()
 pg.mixer.set_num_channels(32)
+
 
 
 # Moved that here so that you don't start on a black screen
@@ -100,7 +103,7 @@ def pygame_splash_screen(WIN, CLOCK):
             # Draw the stuff
             surface_to_draw = pg.transform.scale(surface_to_draw, (slide_width, slide_height))
             WIN.blit(surface_to_draw, (width_s // 2 - slide_width // 2, height_s // 2 - slide_height // 2))
-            pg.display.update()
+            pg.display.flip()
             CLOCK.tick(60)
 
 
@@ -112,6 +115,7 @@ import Items   # Everything crashes if I remove that
 import Event
 import Render
 import Entity
+import Entity_Input_Funcs
 import Main_Loop
 
 
@@ -614,7 +618,7 @@ def versus_mode(party_info):
             Fun.versus_end_menu(WIN, CLOCK, party_info, end_status)
 
 
-def custom_level():
+def custom_level(level_to_load="Ass Cheeks"):
     big_game_loop = True
 
     while big_game_loop:
@@ -624,17 +628,25 @@ def custom_level():
 
         if load_level:
             # Get event from JSON
-            level = Event.load_level("Ass Cheeks")
+            level = Event.load_level(level_to_load)
 
             # Set up the rests
             entities = {"entities": [], "items": [], "sounds": [], "bullets": [],
                         "background particles": [], "particles": [], "UI particles": [], "screen shake": [],
-                        "cutscene stage": 0, "shadows": [], "scrolling": [], "scrolling target": []}
+                        "cutscene stage": 0, "shadows": [], "scrolling": [], "scrolling target": [], "WIN": WIN}
 
             scrolling_target_entities = []  # Use that
             # Load up the party
             player_count = 0
-            out_party = [["Wizard", "Keyboard & Mouse"]]
+
+            player_character = level["characters"][0]
+            if len(level["characters"]) != 1:
+                character_options = []
+                for character in level["characters"]:
+                    character_options.append({"Name": character, "Value": character, "On select": "Return", "Render func": "Text only"})
+                player_character  = Fun.confirmation_popup(WIN, CLOCK, [100, 60], character_options, text="")
+
+            out_party = [[player_character, "Keyboard & Mouse"]]
             for count, player_to_add in enumerate(out_party):
                 name = player_to_add[0]
                 input_method = player_to_add[1]
@@ -645,16 +657,16 @@ def custom_level():
 
                 # Manage input functions, default is AI
                 if input_method == "Keyboard & Mouse":
-                    info["func input"] = Entity.player_input_keyboard
+                    info["func input"] = Entity_Input_Funcs.player_input_keyboard
                     info["free var"].update({"Outline": Fun.PLAYER_OUTLINE_COLOUR[player_count]})
 
                     player_count += 1
                 elif input_method in ["Controller 1", "Controller 2", "Controller 3", "Controller 4"]:
                     info["func input"] = {
-                        "Controller 1": Entity.player_input_controller_1,
-                        "Controller 2": Entity.player_input_controller_2,
-                        "Controller 3": Entity.player_input_controller_3,
-                        "Controller 4": Entity.player_input_controller_4
+                        "Controller 1": Entity_Input_Funcs.player_input_controller_1,
+                        "Controller 2": Entity_Input_Funcs.player_input_controller_2,
+                        "Controller 3": Entity_Input_Funcs.player_input_controller_3,
+                        "Controller 4": Entity_Input_Funcs.player_input_controller_4
                     }[input_method]
                     info["Input mode"] = "Controller"
                     info["free var"].update({"Outline": Fun.PLAYER_OUTLINE_COLOUR[player_count]})
@@ -701,15 +713,15 @@ def custom_level():
             scrolling_target = Fun.find_scrolling_target(scrolling_target_entities)
             scrolling = scrolling_target
             entities["scrolling"] = scrolling
-            # end_status = "Loss"
+
             # |Main game loop|------------------------------------------------------------------------------------------
             frame_2 = WIN.copy()
             Render.draw(WIN, CLOCK, 0, scrolling, scrolling_target, level, entities, 1)
             Fun.menu_transition_doom_screen_melt(WIN, CLOCK, WIN.copy(), frame_2)
 
-            end_status, mission_end_screen, big_game_loop, time_spent = Main_Loop.main_loop_no_party(WIN, CLOCK, entities, level,
-                                                                                            scrolling,
-                                                                                            scrolling_target_entities)
+            end_status, mission_end_screen, big_game_loop, time_spent = Main_Loop.main_loop_no_party(
+                WIN, CLOCK, entities, level, scrolling, scrolling_target_entities
+            )
 
             pg.mixer.music.fadeout(60)
             # |Mission end screen|----------------------------------------------------------------------------------

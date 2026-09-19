@@ -1012,7 +1012,7 @@ class BulletDanmaku2(BasicBullet):
             if type(modifier["angle"]) == list:
                 mod = Fun.angle_between(entities[target_type][mod[0]], self.pos)
             if modifier["angle"] == "Player":
-                mod = Fun.angle_between(entities["players"][0].pos, self.pos)
+                mod = Fun.angle_between(entities["entities"][0].pos, self.pos)
             self.angle = mod
         if "speed" in modifier:
             self.speed = modifier["speed"]

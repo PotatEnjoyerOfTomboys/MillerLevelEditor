@@ -17,9 +17,10 @@ def spawn_item(entities, item_name, pos, self=False):
     entities["items"].append(ItemGen2(item_repertory[item_name].copy(), pos))
 
 
-class ItemGen2:
+class ItemGen2(Fun.Adam):
     # Like the old item class, but way better
     def __init__(self, info, pos, team="Neutral", owner=None):
+        Fun.Adam.__init__(self)
         info = info.copy()
 
         # Identification
@@ -85,11 +86,12 @@ class ItemGen2:
                 e.vel = Fun.move_with_vel_angle(e.vel, 2, Fun.angle_between(e.collision_box.center, self.pos))
 
     def act(self, entities, level):
+        self.z = self.pos[1]
         self.time += 1
         self.act_func(self, entities, level)
         if self.vel != [0, 0]: self.move(level)
 
-    def draw(self, WIN, scrolling):
+    def draw(self, WIN, scrolling, we_do, nothing):
         self.draw_func(self, WIN, scrolling)
 
 
@@ -1079,10 +1081,30 @@ item_repertory = {
 editor_items = [
     "Landmine",
     "Cover Large",
+    # Sandbag - cover
     "Cover Moving",
     "Big ol Red Barrel",
     "Smoke generator",
     "Oil Barrel",
     "Shrapnel Bomb",
+    # Caltrops, you lose all speed if you step on them
+    # Slip n slide
+    # Pussy swamp gases
+    # Ricochet machine, bullets that hit it change direction
+    # Planks, you can go through it if you are fast enough
+    # Table / bench, becomes cover if someone runs into a side
 
+    # Ration (heal or buff to anyone who picks up)
+
+    # |Props
+    # Cars, blows up when destroyed
+    # Tree. Doesn't take damage just has collisions
+    # Painting. Does jack shit
+    # Desk.
+
+
+    # |Controllable vehicles
+    # Tank
+    # Cars
+    # Mech
 ]

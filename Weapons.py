@@ -2513,6 +2513,632 @@ def azura_passive(self, entities, level):
         entities["items"][-1].life_time = abs(self.dash_cooldown)
 
 
+# |No Name TSS Weapon functions|----------------------------------------------------------------------------------------
+def charge_enemy(self, entities, bullets):
+    # Modified version of charge for enemy weapons
+    if self.no_shoot_state == 0:
+        self.vel[0] -= 20 * math.cos(self.angle * math.pi / 180)
+        self.vel[1] -= 20 * math.sin(self.angle * math.pi / 180)
+
+        Bullets.spawn_bullet(
+            self, entities,
+            Bullets.Laser,
+            [self.pos[0], self.pos[1]],
+            self.angle,
+            [0, 15, 125, 10, {"Colour": Fun.WHITE,
+                              "Damage type": "Melee"}])
+
+        for particle in range(8):
+            pos = random.randint(5, 125)
+            entities["particles"].append(Particles.Smoke(
+                [self.pos[0] - pos * math.cos(self.aim_angle * math.pi / 180),
+                 self.pos[1] - pos * math.sin(self.aim_angle * math.pi / 180)]))
+        self.no_shoot_state = 90
+
+
+def monkey_gun_enemy(self, entities, bullets):
+    # Empty the mag
+    if self.weapon.ammo < self.weapon.max_ammo:
+        self.input["Shoot"] = True
+
+
+def black_powder_revolver_alt_boss(self, entities, bullets):
+    # Russian roulette
+    if self.weapon.ammo > 0:
+        cooldown = self.weapon.fire_rate * 3
+        if random.randint(1, 6) <= self.weapon.ammo:
+            # Stuff that make the shot stronger
+            length_mod = 1
+            damage_mod = 1
+            duration_mod = 1
+            if self.weapon.ammo <= 5:
+                duration_mod = 2
+            if self.weapon.ammo <= 4:
+                damage_mod *= 2
+            if self.weapon.ammo <= 3:
+                length_mod = 1.5
+            if self.weapon.ammo <= 2:
+                cooldown = self.weapon.fire_rate
+            if self.weapon.ammo == 1:
+                damage_mod *= 4
+
+            # Shoots a bullet
+            bullets["players"].append(Bullets.Laser(
+                [self.pos[0] - 20 * math.cos(self.aim_angle * math.pi / 180),
+                 self.pos[1] - 20 * math.sin(self.aim_angle * math.pi / 180)], self.aim_angle,
+                [0,
+                 self.weapon.bullet_info[1] // 6 * duration_mod,
+                 int(self.weapon.range * length_mod),
+                 self.weapon.bullet_info[3] // 8 * damage_mod,
+                 {"Colour": Fun.LIGHT_GRAY}]))
+            self.weapon.ammo -= 1
+        self.no_shoot_state = cooldown
+
+
+def aim_buff(self, entities, bullets):
+    time_threshold = 400
+    if self.time >= time_threshold:
+        for e in entities["enemies"]:
+            if Fun.check_point_in_circle(self.targeting_range, self.pos[0], self.pos[1], e.pos[0], e.pos[1]):
+                e.status["Perfect Aim"] += 1
+    if self.time == time_threshold:
+        for particles_to_add in range(360 // 10):
+            entities["particles"].append(Particles.RandomParticle2([self.pos[0], self.pos[1]],
+                                                             Fun.WHITE, 4,
+                                                             10, particles_to_add * 10))
+
+
+def pirate_special_ammo(self, entities, bullets):
+    for e in entities["entities"]:
+        if e.team != self.team: continue
+        if Fun.check_point_in_circle(self.targeting_range * 2, self.pos[0], self.pos[1], e.pos[0], e.pos[1]):
+            if e.reloading and e.faction == "Pirate" and e.name != "Pirate Flamer":
+                e.status["Bullet x3"] = e.weapon.reload_time * 3
+    self.status["Bullet x3"] = 0
+
+
+def gang_special_ammo(self, entities, bullets):
+    if self.time == 0:
+        randomized_ammo_type = [
+            "Incendiary", "Normal", "Normal", "More bullets", "High Vel", "Spray N' Pray"
+        ][random.randint(0, 5)]
+        if self.weapon.weapon_class == "Shotgun":
+            if randomized_ammo_type == "Incendiary":
+                self.weapon.bullet_type = Bullets.Fire
+                self.weapon.bullets_per_shot *= 2
+                self.weapon.bullets_per_shot = round(self.weapon.bullets_per_shot)
+                self.weapon.bullet_info[3] -= self.weapon.bullets_per_shot * 0.125
+                self.weapon.bullet_info[3] = round(self.weapon.bullet_info[3]) + 1
+                if self.weapon.bullet_info[3] < 1:
+                    self.weapon.bullet_info[3] = 1
+
+                self.weapon.bullet_info[4] = {"Particle allowed": True,
+                                              "Burn chance": 0.25,
+                                              "Burn duration": 30,
+                                              "Colour": Fun.RED}
+            elif randomized_ammo_type == "More bullets":
+                self.weapon.bullets_per_shot = round(self.weapon.bullets_per_shot * 1.5)
+                self.weapon.bullet_info[3] -= self.weapon.bullets_per_shot * 0.125
+                self.weapon.bullet_info[3] = round(self.weapon.bullet_info[3]) + 1
+                if self.weapon.bullet_info[3] < 1:
+                    self.weapon.bullet_info[3] = 1
+        else:
+            if randomized_ammo_type == "Incendiary":
+                self.weapon.bullet_type = Bullets.Fire
+                self.weapon.bullet_info[4] = {"Particle allowed": True,
+                                              "Burn chance": 0.25,
+                                              "Burn duration": 30,
+                                              "Colour": Fun.RED}
+            elif randomized_ammo_type == "More bullets" and self.weapon.name != "Gang Rifle":
+                self.weapon.bullets_per_shot *= self.weapon.bullet_info[2] * 2
+                self.weapon.bullet_info[2] = 1
+                self.weapon.bullet_info[3] //= 2
+                self.weapon.spread *= 2
+            elif randomized_ammo_type == "More bullets" and self.weapon.name == "Gang Rifle":
+                self.weapon.bullets_per_shot *= self.weapon.bullet_info[2] * 2
+                self.weapon.bullet_info[2] = 1
+                self.weapon.bullet_info[3] //= 2
+                self.weapon.spread *= 1.25
+
+        if randomized_ammo_type == "High Vel":
+            self.weapon.bullet_info[0] *= 2
+        if randomized_ammo_type == "Spray N' Pray":
+            self.weapon.full_auto = True
+            self.weapon.fire_rate = round(self.weapon.fire_rate * 0.2)
+            self.weapon.accuracy *= 3
+            self.weapon.reload_time *= 2
+
+
+def backward_shot_boss(self, entities, bullets):
+    # Used for:
+    # - Dual Pistols
+    # self.status["Fuller auto"] = 1
+    target = Fun.find_closest_in_circle(self, entities, self.weapon.range, "players")
+    if target:
+        self.aim_angle = Fun.angle_between(target, self.pos)
+
+        # self.mouse_input["Fire"] = True
+        # self.status["Bullet x3"] += 1
+        self.status["Bullet damage up"] += 1
+
+
+def dual_guns_boss(self, entities, bullets):
+    # Manage the rendering of the second pistol
+    entities["particles"].append(
+        Particles.SecondPistolParticle(self.pos, self.weapon.sprite,
+                                 self.reloading, self.weapon.reload_time,
+                                 self.no_shoot_state, self.aim_angle))
+
+    # Unloads the guns when reloading
+    if self.input["Alt fire"] and self.weapon.ammo_pool > 0 and self.no_shoot_state == 0:
+        # Make it create an item which does the same thing over time
+
+        self.equipped_weapon.ammo = 0
+
+
+def temperance_sword(self, entities, bullets):
+    sword_tip = Fun.move_with_vel_angle(self.pos, 45, self.aim_angle)
+    destination = Fun.move_with_vel_angle(self.pos, 45, self.angle)
+    dist_between = Fun.distance_between(sword_tip, destination)
+    # angle_between = Fun.angle_between(sword_tip, destination)
+    # entities["particles"].append(Fun.LineParticle(destination, Fun.MAGENTA, 1, dist_between, angle_between, width=2))
+
+    scale = dist_between
+    self.weapon.handle = pg.math.clamp(dist_between / 10, 0, 90)
+    # if self.equipped_weapon.handle > 3:
+    #    bullets["players"].append(Bullets.Laser(
+    #         Fun.move_with_vel_angle(self.pos, 10, self.aim_angle),
+    #         self.aim_angle,
+    #         [0, 1, 35, scale, {"Colour": Fun.WHITE,
+    #                            "Damage type": "Physical"}]))
+
+
+def riot_shield_enemy(self, entities, bullets):
+    # Get the direction
+    player_direction = Fun.get_entity_direction(self.aim_angle)
+
+    # Place the Shield
+    Items.spawn_item(entities, "Riot Shield", Fun.move_with_vel_angle(self.pos, 15, self.aim_angle), self=self)
+
+    # Prevent the player from doing some other actions
+    self.input["Shoot"] = False
+
+    # Other effect
+    if self.status["High friction"] == 0:
+        self.status["High friction"] = 200
+    elif self.status["High friction"] == 1:
+        self.no_shoot_state = 200
+
+
+def riot_shield_passive_enemy(self, entities, bullets):
+    if not self.input["Alt fire"]:
+        # Get the direction
+        player_direction = Fun.get_entity_direction(self.angle + 180)
+
+        entities["particles"].append(Particles.AfterImage(
+            Fun.move_with_vel_angle(self.pos, -15, self.angle), Fun.SPRITES_RIOT_SHIELD[player_direction], 1))
+
+
+def commander_passive_enemy(self, entities, bullets):
+    if self.time % 300 == 0:
+        enemies_around = {
+            "Nest Trooper": 0,
+            "Nest Shotgunner": 0,
+            "Nest Sniper": 0,
+            "Nest Shield": 0,
+            "Nest Commander": 0,
+            "Nest Flamer": 0,
+            "Nest Heavy Trooper": 0,
+            "Nest Railgunner": 0,
+            "Nest Demolisher": 0,
+            "Nest Bunker": 0,
+            "Nest Cloaker": 0,
+        }
+        enemies_ref = []
+        enemy_total = 0
+        # |Check for other enemies around
+        for e in entities["entities"]:
+            if e.team != self.team: continue
+            if e.faction == "Nest" and Fun.distance_between(e.pos, self.pos) < 128 and e.name != "Nest Commander":
+                name = e.name
+                if name == "Heaviest Trooper":
+                    name = "Nest Heavy Trooper"
+                enemies_around[name] += 1
+                enemy_total += 1
+                enemies_ref.append(e)
+                if enemy_total > 8:
+                    break
+
+        # |Choose which formation to use based on available troops
+        current_formation = self.free_var["Formation"][0]
+        modified_leader = "None"
+        commander_num = 0
+        formation_to_use = "None"
+        status_effects = []
+        formation_limit = -1
+
+        at_least_1_shield = enemies_around["Nest Shield"] > 0
+        at_least_2_trooper_shotgun = enemies_around["Nest Trooper"] + enemies_around["Nest Shotgunner"] > 1
+        # Line formation
+        if at_least_1_shield and current_formation != "Line":
+            modified_leader = "Nest Shield"
+            commander_num = 1
+            formation_to_use = "Line"
+
+        # Web
+        if at_least_2_trooper_shotgun and current_formation != "Web":
+            formation_to_use = "Web"
+            formation_limit = 7
+
+        # Vee
+        if at_least_2_trooper_shotgun and current_formation != "Vee":
+            # pussyslayer4000
+            formation_to_use = "Vee"
+            formation_limit = 4
+
+        # Diamond
+        if at_least_2_trooper_shotgun and current_formation != "Diamond":
+            formation_to_use = "Diamond"
+            formation_limit = 5
+
+        # Spear
+        if at_least_2_trooper_shotgun and at_least_1_shield and current_formation != "Spear":
+            # modified_leader = "Nest Shield"
+            # commander_num = 1
+            formation_to_use = "Spear"
+            formation_limit = 5
+
+        # Basic 1 and 2
+        if enemy_total <= 3 and current_formation not in ["Basic 1", "Basic 2"]:
+            formation_to_use = f"Basic {random.randint(1, 2)}"
+            formation_limit = 4
+
+        # |Change formation
+        count = commander_num + 1
+        for e in enemies_ref:
+            if modified_leader == e.name:
+                e.free_var["Formation"] = [formation_to_use, 0]
+                modified_leader = "None"
+            else:
+                e.free_var["Formation"] = [formation_to_use, count]
+                count += 1
+
+            if count == formation_limit:
+                break
+
+            for status in status_effects:
+                e.status[status[0]] += status[1]
+
+        self.free_var["Formation"] = [formation_to_use, commander_num]
+
+
+def railgunner_passive_enemy(self, entities, bullets):
+    nest_sniper_passive(self, entities, bullets)
+    if self.time % 300 == 0:
+        enemies_around = {
+            "Nest Trooper": 0,
+            "Nest Shotgunner": 0,
+            "Nest Sniper": 0,
+            "Nest Shield": 0,
+            "Nest Commander": 0,
+            "Nest Flamer": 0,
+            "Nest Heavy Trooper": 0,
+            "Nest Railgunner": 0,
+            "Nest Demolisher": 0,
+            "Nest Bunker": 0,
+            "Nest Cloaker": 0,
+        }
+        enemies_ref = []
+        enemy_total = 0
+        # |Check for other enemies around
+        for e in entities["entities"]:
+            if e.team != self.team: continue
+            if e.faction == "Nest" and Fun.distance_between(e.pos, self.pos) < 128 and e.name != "Nest Commander":
+                name = e.name
+                if name == "Heaviest Trooper":
+                    name = "Nest Heavy Trooper"
+                enemies_around[name] += 1
+                enemy_total += 1
+                enemies_ref.append(e)
+                if enemy_total > 8:
+                    break
+
+        # |Choose which formation to use based on available troops
+        current_formation = self.free_var["Formation"][0]
+        modified_leader = "None"
+        commander_num = 0
+        formation_to_use = "None"
+        status_effects = []
+        formation_limit = -1
+
+        # at_least_1_shield = enemies_around["Nest Shield"] > 0
+        at_least_2_units = enemy_total > 1
+
+        # Vee
+        if at_least_2_units and current_formation != "Vee":
+            formation_to_use = "Vee"
+            formation_limit = 4
+
+        # Spear
+        if at_least_2_units and current_formation != "Spear":
+            # modified_leader = "Nest Shield"
+            # commander_num = 1
+            formation_to_use = "Spear"
+            formation_limit = 5
+
+        # |Change formation
+        count = commander_num + 1
+        for e in enemies_ref:
+            if modified_leader == e.name:
+                e.free_var["Formation"] = [formation_to_use, 0]
+                modified_leader = "None"
+            else:
+                e.free_var["Formation"] = [formation_to_use, count]
+                count += 1
+
+            if count == formation_limit:
+                break
+
+            for status in status_effects:
+                e.status[status[0]] += status[1]
+
+        self.free_var["Formation"] = [formation_to_use, commander_num]
+
+
+def heavy_trooper_passive_enemy(self, entities, bullets):
+    if self.time % 300 == 0:
+        enemies_around = {
+            "Nest Trooper": 0,
+            "Nest Shotgunner": 0,
+            "Nest Sniper": 0,
+            "Nest Shield": 0,
+            "Nest Commander": 0,
+            "Nest Flamer": 0,
+            "Nest Heavy Trooper": 0,
+            "Nest Railgunner": 0,
+            "Nest Demolisher": 0,
+            "Nest Bunker": 0,
+            "Nest Cloaker": 0,
+        }
+        enemies_ref = []
+        enemy_total = 0
+        # |Check for other enemies around
+        for e in entities["entities"]:
+            if e.team != self.team: continue
+            if e.faction == "Nest" and Fun.distance_between(e.pos, self.pos) < 128 and e.name != "Nest Commander":
+                name = e.name
+                if name == "Heaviest Trooper":
+                    name = "Nest Heavy Trooper"
+                enemies_around[name] += 1
+                enemy_total += 1
+                enemies_ref.append(e)
+                if enemy_total > 8:
+                    break
+
+        # |Choose which formation to use based on available troops
+        current_formation = self.free_var["Formation"][0]
+        modified_leader = "None"
+        commander_num = 0
+        formation_to_use = "None"
+        status_effects = []
+        formation_limit = -1
+
+        at_least_2_units = enemy_total > 1
+
+        # Web
+        if at_least_2_units and current_formation != "Web":
+            formation_to_use = "Web"
+            formation_limit = 7
+
+        # Diamond
+        if at_least_2_units and current_formation != "Diamond":
+            formation_to_use = "Diamond"
+            formation_limit = 5
+
+        # Basic 1 and 2
+        if enemy_total <= 3 and current_formation not in ["Basic 1", "Basic 2"]:
+            formation_to_use = f"Basic {random.randint(1, 2)}"
+            formation_limit = 4
+
+        # |Change formation
+        count = commander_num + 1
+        for e in enemies_ref:
+            name = e.name
+            if name == "Heaviest Trooper":
+                name = "Nest Heavy Trooper"
+
+            if modified_leader == name:
+                e.free_var["Formation"] = [formation_to_use, 0]
+                modified_leader = "None"
+            else:
+                e.free_var["Formation"] = [formation_to_use, count]
+                count += 1
+
+            if count == formation_limit:
+                break
+
+            for status in status_effects:
+                e.status[status[0]] += status[1]
+
+        self.free_var["Formation"] = [formation_to_use, commander_num]
+
+
+def nest_sniper_passive(self, entities, level):
+    variable_handling_rate(self, entities, level, rate=13, min_handle=0)
+
+
+def nest_trooper_alt(self, entities, bullets):
+    Bullets.spawn_bullet(
+        self, entities,
+        Bullets.GrenadeType3,
+        Fun.move_with_vel_angle(self.pos, 20, self.angle),
+        self.aim_angle,
+        [3, 100, 4.5, 0, {"Smoke": {"Radius": 64, "Duration": 3 * 60}}])
+    self.weapon.ammo -= 1
+
+    self.no_shoot_state = 180
+
+
+def nest_shotgunner_alt(self, entities, bullets):
+    if self.weapon.bullet_type == Bullets.Fire:
+        self.weapon.bullet_type = Bullets.Bullet
+        self.weapon.bullet_info[4] = {"Piercing": False, "Smoke": False}
+    elif self.weapon.bullet_type == Bullets.Bullet:
+        self.weapon.bullet_type = Bullets.Fire
+        self.weapon.bullet_info[4] = {"Particle allowed": True, "Burn chance": self.weapon.crit_rate * 2,
+                                      "Burn duration": 20, "Colour": Fun.RED}
+    # self.no_shoot_state = 70
+    self.weapon.ammo -= 1
+
+
+def nest_demolisher_alt(self, entities, bullets):
+    angle = self.aim_angle + random.uniform(-35, 35)
+    pos = Fun.move_with_vel_angle(self.pos, 1, angle)
+    # TODO: I AM HANDLING THAT SHIT LATER
+    return
+    mine = {"name": "Laser landmine",
+            "thickness": 8,
+            "ai": Items.item_laser_landmine,
+            "effect": False,
+            "bullet effect": False,
+            "free variable": {
+                "Laser": [64, angle + random.uniform(-45, 45)],  # Length, angle
+                "Explosion info": [0, 5, 10, 11, {"Duration": 7, "Growth": 3, "Damage mod": 1}],
+                "Target": "players"
+            },
+            "sprites": [Fun.SPRITE_EMPTY]
+            }
+
+    # bullets["players"].append(Bullets.Bullet(pos, angle, [5, 150, 1, 0, {"Piercing": False, "Smoke": False}]))
+    # bullets["players"][-1].wall_physics = Bullets.base_grenade_wall_hit
+    entities["items"].append(Items.Item(mine, pos))
+    # self.no_shoot_state = 70
+    self.weapon.ammo -= 1
+
+
+def nest_flamer_passive(self, entities, bullets):
+    if self.input["Shoot"] and self.weapon.ammo > 0 and self.no_shoot_state == 0:
+        self.weapon.ammo -= 1
+        Fun.play_sound(self.weapon.gunshot_sound)
+        for x in range(15):
+            Bullets.spawn_bullet(
+                self, entities,
+                Bullets.Napalm,
+                Fun.move_with_vel_angle(self.pos, 20, self.angle),
+                self.aim_angle + random.uniform(-15, 15),
+                [random.uniform(4, 5), 80, 4, 4, {"Particle allowed": False,
+                                                  "Burn chance": 0.25,
+                                                  "Burn duration": 30,
+                                                  "Colour": Fun.RED}])
+
+
+def eye_passive(self, entities, level):
+    if self.shooting:
+        if self.no_shoot_state == self.weapon.fire_rate:
+            entities["bullets"][-1].wall_physics = Fun.none
+
+
+# Sand Martin
+def sand_martin_1_passive(self, entities, bullets):
+    if self.time % 300 == 0:
+        enemies_around = {
+            "Nest Trooper": 0,
+            "Nest Shotgunner": 0,
+            "Nest Sniper": 0,
+            "Nest Shield": 0,
+            "Nest Commander": 0,
+            "Nest Flamer": 0,
+            "Nest Heavy Trooper": 0,
+            "Nest Railgunner": 0,
+            "Nest Demolisher": 0,
+            "Nest Bunker": 0,
+            "Nest Cloaker": 0,
+        }
+        enemies_ref = []
+        enemy_total = 0
+        # |Check for other enemies around
+        for e in entities["enemies"]:
+            if e.faction == "Nest" and Fun.distance_between(e.pos, self.pos) < 128 and e.name != "Nest Commander":
+                name = e.name
+                if name == "Heaviest Trooper":
+                    name = "Nest Heavy Trooper"
+                enemies_around[name] += 1
+                enemy_total += 1
+                enemies_ref.append(e)
+                if enemy_total > 8:
+                    break
+
+        # |Choose which formation to use based on available troops
+        current_formation = self.free_var["Formation"][0]
+        modified_leader = "None"
+        commander_num = 0
+        formation_to_use = "None"
+        status_effects = []
+        formation_limit = -1
+
+        at_least_1_shield = enemies_around["Nest Shield"] > 0
+        at_least_2_trooper_shotgun = enemies_around["Nest Trooper"] + enemies_around["Nest Shotgunner"] > 1
+        # Line formation
+        if at_least_1_shield and current_formation != "Line":
+            modified_leader = "Nest Shield"
+            commander_num = 1
+            formation_to_use = "Line"
+
+        # Web
+        if at_least_2_trooper_shotgun and current_formation != "Web":
+            formation_to_use = "Web"
+            formation_limit = 7
+
+        # Vee
+        if at_least_2_trooper_shotgun and current_formation != "Vee":
+            # pussyslayer4000
+            formation_to_use = "Vee"
+            formation_limit = 4
+
+        # Diamond
+        if at_least_2_trooper_shotgun and current_formation != "Diamond":
+            formation_to_use = "Diamond"
+            formation_limit = 5
+
+        # Spear
+        if at_least_2_trooper_shotgun and at_least_1_shield and current_formation != "Spear":
+            # modified_leader = "Nest Shield"
+            # commander_num = 1
+            formation_to_use = "Spear"
+            formation_limit = 5
+
+        # Basic 1 and 2
+        if enemy_total <= 3 and current_formation not in ["Basic 1", "Basic 2"]:
+            formation_to_use = f"Basic {random.randint(1, 2)}"
+            formation_limit = 4
+
+        # |Change formation
+        count = commander_num + 1
+        for e in enemies_ref:
+            if modified_leader == e.name:
+                e.free_var["Formation"] = [formation_to_use, 0]
+                modified_leader = "None"
+            else:
+                e.free_var["Formation"] = [formation_to_use, count]
+                count += 1
+
+            if count == formation_limit:
+                break
+
+            for status in status_effects:
+                e.status[status[0]] += status[1]
+
+        self.free_var["Formation"] = [formation_to_use, commander_num]
+
+    if not self.input["Alt fire"]:
+        # Get the direction
+        player_direction = Fun.get_entity_direction(self.angle + 180)
+
+        entities["particles"].append(Particles.AfterImage(
+            Fun.move_with_vel_angle(self.pos, -15, self.angle), Fun.SPRITES_RIOT_SHIELD[player_direction], 1))
+
+
+# |Ammo Bar Sprites|----------------------------------------------------------------------------------------------------
 AMMO_BAR_SPRITE_SHEET = Fun.get_image("Sprites/UI/Ammo.png")
 AMMO_BAR_SPRITES = {
     "Pistol Large": AMMO_BAR_SPRITE_SHEET.subsurface((0, 0, 16, 8)),
@@ -2538,6 +3164,7 @@ AMMO_BAR_SPRITES = {
     "Misc": AMMO_BAR_SPRITE_SHEET.subsurface((32, 40, 8, 8)),
     "None": AMMO_BAR_SPRITE_SHEET.subsurface((32, 40, 1, 1)),
 }
+
 # |Weapon Repertories|--------------------------------------------------------------------------------------------------
 weapon_repertory = {
     # |THR-1|-----------------------------------------------------------------------------------------------------------
@@ -4783,8 +5410,8 @@ weapon_repertory = {
          "alt fire": "war_and_peace_alt",
          "passive": "war_and_peace_passive",
          "free var": {"Peace angle": 0, "War angle": 0}},
-    # |No Name TSS weapons|---------------------------------------------------------------------------------------------
 
+    # |No Name TSS - Enemy Weapons|-------------------------------------------------------------------------------------
     # |CommieBot Weapons|-----------------------------------------------------------------------------------------------
     "Hammer":
         {"name": "Hammer",
@@ -4898,6 +5525,1048 @@ weapon_repertory = {
          "crit multiplier": 2,
          "jam rate": 0.005,
          "jam duration": 10,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    # Fish
+    "Fish weapon":
+        {"name": "Fish weapon",
+         "class": "Laser",
+         "sprite": "Sprites/Weapon/Anime.png",
+         "gunshot sound": "Silence",
+         "reloading sound": "Silence",
+         "jamming sound": "Silence",
+         "sound level": 0,
+         "accuracy": 0,
+         "spread": 0,
+         "handle": 0,
+         "recoil": 0,
+         "full auto": False,
+         "fire rate": 0,
+         "reload time": 1,
+         "bullet type": "Bullet",
+         "bullets per shot": 0,
+         "ammo cost": 0,
+         "bullet info": [0, 0, 0, 0, {"Piercing": False, "Smoke": False}],
+         "max ammo": 1,
+         "ammo pool": 0,
+         "crit rate": 0,
+         "crit multiplier": 0,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    "Fish weapon 2":
+        {"name": "Fish weapon 2",
+         "class": "Laser",
+         "sprite": "Sprites/Weapon/Standard Pistol.png",
+         "gunshot sound": "Small arms",
+         "reloading sound": "Silence",
+         "jamming sound": "Silence",
+         "sound level": 0,
+         "accuracy": 0,
+         "spread": 0,
+         "handle": 0,
+         "recoil": 0,
+         "full auto": False,
+         "fire rate": 45,
+         "reload time": 1,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 0,
+         "bullet info": [2, 50, 6, 0, {"Piercing": False, "Smoke": False}],
+         "max ammo": 1,
+         "ammo pool": 0,
+         "crit rate": 0,
+         "crit multiplier": 0,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    # |Pirate Weapons|--------------------------------------------------------------------------------------------------
+    "Pirate Sword":
+        {"name": "Pirate Sword",
+         "class": "Slash",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Pirate Sword.png",
+         "gunshot sound": "Shotgun",
+         "reloading sound": "Silence",
+         "jamming sound": "Silence",
+         "sound level": 0,
+         "accuracy": 0,
+         "spread": 0,
+         "handle": 4,
+         "recoil": 150,
+         "full auto": False,
+         "fire rate": 30,
+         "reload time": 1,
+         "bullet type": "Melee",
+         "bullets per shot": 1,
+         "ammo cost": 0,
+         "bullet info": [5, 2, 20, 8, {"Counter not allowed": True}],
+         "max ammo": 1,
+         "ammo pool": 0,
+         "crit rate": 0.1,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "charge_enemy",
+         "passive": "none"},
+    "Pirate Axe":
+        {"name": "Pirate Axe",
+         "class": "Slash",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Pirate Axe.png",
+         "gunshot sound": "Slash",
+         "reloading sound": "Silence",
+         "jamming sound": "Jamming",
+         "sound level": 0,
+         "accuracy": 0,
+         "spread": 0,
+         "handle": 4,
+         "recoil": 150,
+         "full auto": False,
+         "fire rate": 30,
+         "reload time": 1,
+         "bullet type": "Melee",
+         "bullets per shot": 1,
+         "ammo cost": 0,
+         "bullet info": [5, 2, 35, 12, {"Counter not allowed": True}],
+         "max ammo": 1,
+         "ammo pool": 0,
+         "crit rate": 0.1,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "charge_enemy",
+         "passive": "none"},
+    "Pirate Shotgun":
+        {"name": "Pirate Shotgun",
+         "class": "Shotgun",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Pirate Shotgun.png",
+         "gunshot sound": "Shotgun",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0,
+         "accuracy": 16,
+         "spread": 30,
+         "handle": 8,
+         "recoil": 50,
+         "full auto": False,
+         "fire rate": 40,
+         "reload time": 60,
+         "bullet type": "Bullet",
+         "bullets per shot": 7,
+         "ammo cost": 1,
+         "bullet info": [4, 35, 4, 3, {"Piercing": False, "Smoke": False}],
+         "max ammo": 3,
+         "ammo pool": 100,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0.05,
+         "jam duration": 10,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    "Pirate Semi-auto":
+        {"name": "Pirate Semi-auto",
+         "class": "Semi-auto",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Pirate SMG.png",
+         "gunshot sound": "Small arms",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0,
+         "accuracy": 24,
+         "spread": 4,
+         "handle": 8,
+         "recoil": 35,
+         "full auto": True,
+         "fire rate": 15,
+         "reload time": 120,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [3.2, 70, 4, 4, {"Piercing": False, "Smoke": False}],
+         "max ammo": 15,
+         "ammo pool": 750,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0.125,
+         "jam duration": 20,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    "Pirate Rifle":
+        {"name": "Pirate Rifle",
+         "class": "Rifle",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Pirate Rifle.png",
+         "gunshot sound": "Rifle",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0.4,
+         "accuracy": 7,
+         "spread": 2,
+         "handle": 4,
+         "recoil": 50,
+         "full auto": False,
+         "fire rate": 30,
+         "reload time": 120,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [7, 75, 3, 10, {"Piercing": True, "Smoke": True}],
+         "max ammo": 4,
+         "ammo pool": 200,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 10,
+         "laser sight": True,
+         "alt fire": "none",
+         "passive": "none"},
+    "Pirate RocketL.":
+        {"name": "Pirate Rocket Launcher",
+         "class": "Rocket Launcher",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Pirate Rocket Launcher.png",
+         "gunshot sound": "Rocket launcher",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Jamming",
+         "sound level": 0,
+         "accuracy": 10,
+         "spread": 2,
+         "handle": 8,
+         "recoil": 25,
+         "full auto": True,
+         "fire rate": 3,
+         "reload time": 240,
+         "bullet type": "Boom - Delay/Contact",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [10, 40, 6, 8, {"Secondary explosion": {"Duration": 8,
+                                                                "Growth": 2,
+                                                                "Damage mod": 0.25}}],
+         "max ammo": 5,
+         "ammo pool": 150,
+         "crit rate": 0.5,
+         "crit multiplier": 1.5,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": True,
+         "alt fire": "none",
+         "passive": "monkey_gun_enemy"},
+    "Pirate MissileL.":
+        {"name": "Missile Launcher",
+         "description": [],
+         "class": "Rocket Launcher",
+         "sprite": "Sprites/Weapon/Missile Launcher.png",
+         "gunshot sound": "Rocket launcher",
+         "reloading sound": "Reload Pistol 1",
+         "jamming sound": "Jamming",
+         "sound level": 1,
+         "accuracy": 3,
+         "spread": 20,
+         "handle": 2,
+         "recoil": 15,
+         "full auto": True,
+         "fire rate": 23,
+         "reload time": 200,
+         "bullet type": "Missile",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [2.8, 320, 4, 10, {"Targeting range": 200, "Targeting angle": 45, "Target": "players",
+                                           "Secondary explosion": {"Duration": 5, "Growth": 2, "Damage mod": 0.75}}],
+         "max ammo": 3,
+         "ammo pool": 150,
+         "crit rate": 0,
+         "crit multiplier": 1,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    "Pirate Railgun":
+        {"name": "Pirate Railgun",
+         "class": "Laser",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Pirate Railgun.png",
+         "gunshot sound": "Laser 2",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Jamming",
+         "sound level": 0,
+         "accuracy": 4,
+         "spread": 2,
+         "handle": 1,
+         "recoil": 50,
+         "full auto": False,
+         "fire rate": 1,
+         "reload time": 180,
+         "bullet type": "Laser",
+         "bullets per shot": 3,
+         "ammo cost": 1,
+         "bullet info": [0, 60, 350, 3, {"Colour": Fun.GREEN}],
+         "max ammo": 1,
+         "ammo pool": 100,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 10,
+         "laser sight": True,
+         "alt fire": "none",
+         "passive": "none"},
+    "Pirate Flame Thrower":
+        {"name": "Pirate Flame Thrower",
+         "class": "Flame",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Pirate Flamethrower.png",
+         "gunshot sound": "Fire",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Jamming",
+         "sound level": 0,
+         "accuracy": 12,
+         "spread": 0,
+         "handle": 8,
+         "recoil": 0,
+         "full auto": True,
+         "fire rate": 1,
+         "reload time": 100,
+         "bullet type": "Fire",
+         "bullets per shot": 3,
+         "ammo cost": 1,
+         "bullet info": [4, 37, 3, 4, {"Particle allowed": False,
+                                       "Burn chance": 0.25,
+                                       "Burn duration": 30,
+                                       "Colour": Fun.RED}],
+         "max ammo": 50,
+         "ammo pool": 1000,
+         "crit rate": 0.025,
+         "crit multiplier": 2,
+         "jam rate": 0.005,
+         "jam duration": 10,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    "Pirate Handgun":
+        {"name": "Pirate Handgun",
+         "class": "Pistol",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Pirate Pistol.png",
+         "gunshot sound": "Small arms",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Jamming",
+         "sound level": 0.25,
+         "accuracy": 8,
+         "spread": 2,
+         "handle": 8,
+         "recoil": 50,
+         "full auto": False,
+         "fire rate": 30,
+         "reload time": 10,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [4, 40, 2, 5, {"Piercing": False, "Smoke": False}],
+         "max ammo": 10,
+         "ammo pool": 500,
+         "crit rate": 0.1,
+         "crit multiplier": 2,
+         "jam rate": 0.005,
+         "jam duration": 10,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "aim_buff"},
+    "Pirate Blunderbuss":
+        {"name": "Pirate Blunderbuss",
+         "class": "Shotgun",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Pirate Blunderbuss.png",
+         "gunshot sound": "Shotgun",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Jamming",
+         "sound level": 0,
+         "accuracy": 16,
+         "spread": 30,
+         "handle": 8,
+         "recoil": 50,
+         "full auto": False,
+         "fire rate": 40,
+         "reload time": 60,
+         "bullet type": "Bullet",
+         "bullets per shot": 21,
+         "ammo cost": 1,
+         "bullet info": [3, 35, 3, 4, {"Piercing": False, "Smoke": False}],
+         "max ammo": 1,
+         "ammo pool": 100,
+         "crit rate": 0.5,
+         "crit multiplier": 1,
+         "jam rate": 0.05,
+         "jam duration": 10,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "pirate_special_ammo"},
+    # |Street Gang Weapons|---------------------------------------------------------------------------------------------
+    "Gang Pipe":
+        {"name": "Gang Pipe",
+         "class": "Blunt",
+         "sprite": "Sprites/Weapon/Lead Pipe.png",
+         "gunshot sound": "Blunt",
+         "reloading sound": "Silence",
+         "jamming sound": "Silence",
+         "sound level": 0,
+         "accuracy": 0,
+         "spread": 0,
+         "handle": 4,
+         "recoil": 150,
+         "full auto": False,
+         "fire rate": 30,
+         "reload time": 1,
+         "bullet type": "Melee",
+         "bullets per shot": 1,
+         "ammo cost": 0,
+         "bullet info": [5, 2, 20, 8, {"Counter not allowed": True}],
+         "max ammo": 1,
+         "ammo pool": 0,
+         "crit rate": 0.1,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "charge_enemy",
+         "passive": "none"},
+    "Gang Shotgun":
+        {"name": "Gang Shotgun",
+         "class": "Shotgun",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Gang Shotgun.png",
+         "gunshot sound": "Shotgun",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0,
+         "accuracy": 16,
+         "spread": 30,
+         "handle": 8,
+         "recoil": 50,
+         "full auto": False,
+         "fire rate": 40,
+         "reload time": 60,
+         "bullet type": "Bullet",
+         "bullets per shot": 7,
+         "ammo cost": 1,
+         "bullet info": [4, 35, 4, 3, {"Piercing": False, "Smoke": False}],
+         "max ammo": 3,
+         "ammo pool": 100,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0.05,
+         "jam duration": 10,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "gang_special_ammo"},
+    "Gang Semi-auto":
+        {"name": "Gang Semi-auto",
+         "class": "Semi-auto",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Gang SMG.png",
+         "gunshot sound": "Small arms",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0,
+         "accuracy": 8,
+         "spread": 4,
+         "handle": 8,
+         "recoil": 35,
+         "full auto": True,
+         "fire rate": 15,
+         "reload time": 120,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [4, 50, 4, 4, {"Piercing": False, "Smoke": False}],
+         "max ammo": 15,
+         "ammo pool": 750,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0.125,
+         "jam duration": 20,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "gang_special_ammo"},
+    "Gang Rifle":
+        {"name": "Gang Rifle",
+         "class": "Rifle",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Gang Rifle.png",
+         "gunshot sound": "Rifle",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0,
+         "accuracy": 3,
+         "spread": 2,
+         "handle": 8,
+         "recoil": 50,
+         "full auto": False,
+         "fire rate": 40,
+         "reload time": 120,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [7, 75, 3, 10, {"Piercing": True, "Smoke": True}],
+         "max ammo": 4,
+         "ammo pool": 200,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 10,
+         "laser sight": True,
+         "alt fire": "none",
+         "passive": "gang_special_ammo"},
+    "Randy's Napalm":
+        {"name": "Pirate Flame Thrower",
+         "class": "Flame",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Pirate Flamethrower.png",
+         "gunshot sound": "Fire",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Jamming",
+         "sound level": 0,
+         "accuracy": 12,
+         "spread": 0,
+         "handle": 4,
+         "recoil": 0,
+         "full auto": True,
+         "fire rate": 0,
+         "reload time": 60,
+         "bullet type": "Napalm",
+         "bullets per shot": 3,
+         "ammo cost": 1,
+         "bullet info": [1, 120, 4, 1, {"Particle allowed": False,
+                                        "Burn chance": 1,
+                                        "Burn duration": 40,
+                                        "Colour": Fun.RED,
+                                        "Slowdown rate": -0.25}],
+         "max ammo": 1,
+         "ammo pool": Fun.BIG_INT,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 10,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    "Randy's Napalm v2":
+        {"name": "Pirate Flame Thrower",
+         "class": "Flame",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Pirate Flamethrower.png",
+         "gunshot sound": "Fire",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Jamming",
+         "sound level": 0,
+         "accuracy": 12,
+         "spread": 0,
+         "handle": 4,
+         "recoil": 0,
+         "full auto": True,
+         "fire rate": 2,
+         "reload time": 60,
+         "bullet type": "Napalm",
+         "bullets per shot": 3,
+         "ammo cost": 1,
+         "bullet info": [8, 120, 4, 1, {"Particle allowed": False,
+                                        "Burn chance": 1,
+                                        "Burn duration": 40,
+                                        "Colour": Fun.RED,
+                                        "Slowdown rate": 0.25}],
+         "max ammo": 3,
+         "ammo pool": Fun.BIG_INT,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 10,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    # |The Nest Weapons|------------------------------------------------------------------------------------------------
+    # Normals
+    #  Nest Machine Gun
+    "Nest Machine Gun":
+        {"name": "Nest Machine Gun",
+         "class": "Semi-auto",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Nest SMG.png",
+         "gunshot sound": "Small arms",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0,
+         "accuracy": 2,
+         "spread": 4,
+         "handle": 5,
+         "recoil": 5,
+         "full auto": True,
+         "fire rate": 3,
+         "reload time": 220,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [5, 50, 2.25, 4, {"Piercing": False, "Smoke": False}],
+         "max ammo": 30,
+         "ammo pool": 750,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "nest_trooper_alt",
+         "passive": "none"},
+    "Nest Shotgun":
+        {"name": "Nest Shotgun",
+         "class": "Shotgun",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Nest Shotgun.png",
+         "gunshot sound": "Shotgun",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0,
+         "accuracy": 8,
+         "spread": 12,
+         "handle": 5,
+         "recoil": 50,
+         "full auto": False,
+         "fire rate": 30,
+         "reload time": 120,
+         "bullet type": "Bullet",
+         "bullets per shot": 7,
+         "ammo cost": 1,
+         "bullet info": [7, 25, 4, 8, {"Piercing": False, "Smoke": False}],
+         "max ammo": 8,
+         "ammo pool": 100,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "nest_shotgunner_alt",
+         "passive": "none"},
+    "Nest Rifle":
+        {"name": "Nest Rifle",
+         "class": "Rifle",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Nest Rifle.png",
+         "gunshot sound": "Rifle 2",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0,
+         "accuracy": 1,
+         "spread": 1,
+         "handle": 0.5,
+         "recoil": 50,
+         "full auto": False,
+         "fire rate": 0,
+         "reload time": 30,
+         "bullet type": "Laser",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [0, 12, 500, 30, {"Colour": Fun.WHITE,
+                                          "Damage type": "Melee"}],
+         "max ammo": 1,
+         "ammo pool": 200,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 10,
+         "laser sight": True,
+         "alt fire": "none",
+         "passive": "nest_sniper_passive"},
+    "Nest Rifle old":
+        {"name": "Nest Rifle",
+         "class": "Rifle",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Nest Rifle.png",
+         "gunshot sound": "Rifle",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0,
+         "accuracy": 1,
+         "spread": 1,
+         "handle": 5,
+         "recoil": 50,
+         "full auto": False,
+         "fire rate": 30,
+         "reload time": 300,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [8, 75, 4, 15, {"Piercing": True, "Smoke": True}],
+         "max ammo": 10,
+         "ammo pool": 200,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 10,
+         "laser sight": True,
+         "alt fire": "none",
+         "passive": "none"},
+    # Heavy
+    "Nest Flame Thrower":
+        {"name": "Nest Flame Thrower",
+         "class": "Flame",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Nest Flamethrower.png",
+         "gunshot sound": "Fire",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Jamming",
+         "sound level": 0,
+         "accuracy": 12,
+         "spread": 0,
+         "handle": 8,
+         "recoil": 0,
+         "full auto": False,
+         "fire rate": 0,
+         "reload time": 240,
+         "bullet type": "Napalm",
+         "bullets per shot": 0,
+         "ammo cost": 0,
+         "bullet info": [4.5, 80, 4, 8, {"Particle allowed": False,
+                                         "Burn chance": 0.25,
+                                         "Burn duration": 30,
+                                         "Colour": Fun.RED}],
+         "max ammo": 1,
+         "ammo pool": 1000,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0.005,
+         "jam duration": 10,
+         "laser sight": True,
+         "alt fire": "none",
+         "passive": "nest_flamer_passive"},
+    "Nest Heavy Machine Gun":
+        {"name": "Nest Heavy Machine Gun",
+         "class": "Semi-auto",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Nest HMG.png",
+         "gunshot sound": "Small arms",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0,
+         "accuracy": 2,
+         "spread": 4,
+         "handle": 3,
+         "recoil": 1,
+         "full auto": True,
+         "fire rate": 2,
+         "reload time": 600,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [5, 50, 2, 4, {"Piercing": False, "Smoke": False}],
+         "max ammo": 250,
+         "ammo pool": 25000,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "heavy_trooper_passive_enemy"},
+    "Nest Heavy Machine Gun Bunker":
+        {"name": "Nest Heavy Machine Gun Bunker",
+         "class": "Semi-auto",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Nest HMG.png",
+         "gunshot sound": "Small arms",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0,
+         "accuracy": 2,
+         "spread": 4,
+         "handle": 3,
+         "recoil": 1,
+         "full auto": True,
+         "fire rate": 2,
+         "reload time": 600,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [5, 50, 2, 4, {"Piercing": False, "Smoke": False}],
+         "max ammo": 250,
+         "ammo pool": 25000,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    "Nest Railgun":
+        {"name": "Nest Railgun",
+         "class": "Laser",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Nest Railgun.png",
+         "gunshot sound": "Rifle 2",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0,
+         "accuracy": 1,
+         "spread": 9,
+         "handle": 0.5,
+         "recoil": 50,
+         "full auto": False,
+         "fire rate": 10,
+         "reload time": 30,
+         "bullet type": "Laser",
+         "bullets per shot": 3,
+         "ammo cost": 1,
+         "bullet info": [0, 12, 500, 20, {"Colour": Fun.GREEN}],
+         "max ammo": 1,
+         "ammo pool": 200,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 10,
+         "laser sight": True,
+         "alt fire": "none",
+         "passive": "railgunner_passive_enemy"},
+    #  Nest Grenade Launcher
+    "Nest Grenade Launcher":  # Starting weapon
+        {"name": "Nest Grenade Launcher",
+         "description": [],
+         "class": "Throwable",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Nest Grenade Launcher.png",
+         "gunshot sound": "Small arms",
+         "reloading sound": "Reload Pistol 1",
+         "jamming sound": "Jamming",
+         "sound level": 0.5,
+         "accuracy": 3,
+         "spread": 2,
+         "handle": 8,
+         "recoil": 50,
+         "full auto": False,
+         "fire rate": 50,
+         "reload time": 160,
+         "bullet type": "Grenade",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [5, 100, 4, 16, {"Secondary explosion": {"Duration": 5,
+                                                                 "Growth": 3,
+                                                                 "Damage mod": 1}}],
+         "max ammo": 6,
+         "ammo pool": 60,
+         "crit rate": 0,
+         "crit multiplier": 1,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "nest_demolisher_alt",
+         "passive": "none"},
+    # Specialist
+    "Nest Riot Pistol":
+        {"name": "Nest Riot Pistol",
+         "class": "Pistol",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Nest PDW.png",
+         "gunshot sound": "Small arms",
+         "reloading sound": "Reload Pistol 1",
+         "jamming sound": "Jamming",
+         "sound level": 0.5,
+         "accuracy": 8,
+         "spread": 2,
+         "handle": 2,
+         "recoil": 80,
+         "full auto": False,
+         "fire rate": 3,
+         "reload time": 10,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [6, 25, 4, 4, {"Piercing": False, "Smoke": False}],
+         "max ammo": 20,
+         "ammo pool": 200,
+         "crit rate": 0.1,
+         "crit multiplier": 2,
+         "jam rate": 0.01,
+         "jam duration": 10,
+         "laser sight": False,
+         "alt fire": "riot_shield_enemy",
+         "passive": "riot_shield_passive_enemy"},
+    "Nest Commander PDW":
+        {"name": "Nest Commander PDW",
+         "class": "Pistol",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Nest PDW.png",
+         "gunshot sound": "Small arms",
+         "reloading sound": "Reload Pistol 1",
+         "jamming sound": "Jamming",
+         "sound level": 0.5,
+         "accuracy": 8,
+         "spread": 2,
+         "handle": 9,
+         "recoil": 2,
+         "full auto": False,
+         "fire rate": 3,
+         "reload time": 10,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [6, 25, 4, 8, {"Piercing": False, "Smoke": False}],
+         "max ammo": 20,
+         "ammo pool": 200,
+         "crit rate": 0.1,
+         "crit multiplier": 2,
+         "jam rate": 0.01,
+         "jam duration": 10,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "commander_passive_enemy"},
+    # Melee
+    "Nest Knife":
+        {"name": "Nest Knife",
+         "class": "Blunt",
+         "sprite": "Sprites/Weapon/Enemy Weapons/Nest Knife.png",
+         "gunshot sound": "Blunt",
+         "reloading sound": "Silence",
+         "jamming sound": "Silence",
+         "sound level": 0,
+         "accuracy": 0,
+         "spread": 0,
+         "handle": 4,
+         "recoil": 150,
+         "full auto": False,
+         "fire rate": 30,
+         "reload time": 1,
+         "bullet type": "Melee",
+         "bullets per shot": 1,
+         "ammo cost": 0,
+         "bullet info": [5, 2, 28, 30, {"Counter not allowed": True}],
+         "max ammo": 1,
+         "ammo pool": 0,
+         "crit rate": 0.1,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    #  Nest Machete
+    # |Anomalies|-------------------------------------------------------------------------------------------------------
+    "Monolith":
+        {"name": "Monolith",
+         "class": "Laser",
+         "sprite": "Sprites/Weapon/Anime.png",
+         "gunshot sound": "Silence",
+         "reloading sound": "Silence",
+         "jamming sound": "Silence",
+         "sound level": 0,
+         "accuracy": 0,
+         "spread": 0,
+         "handle": 10,
+         "recoil": 0,
+         "full auto": True,
+         "fire rate": 4,
+         "reload time": 0,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 0,
+         "bullet info": [3, 45, 5, 10, {"Colour": Fun.PURPLE}],
+         "max ammo": 1,
+         "ammo pool": 1,
+         "crit rate": 0,
+         "crit multiplier": 0,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    "Eye":
+        {"name": "Eye",
+         "class": "Laser",
+         "sprite": "Sprites/Weapon/Anime.png",
+         "gunshot sound": "Silence",
+         "reloading sound": "Silence",
+         "jamming sound": "Silence",
+         "sound level": 0,
+         "accuracy": 0,
+         "spread": 0,
+         "handle": 10,
+         "recoil": 0,
+         "full auto": True,
+         "fire rate": 45,
+         "reload time": 0,
+         "bullet type": "Danmaku2",
+         "bullets per shot": 1,
+         "ammo cost": 0,
+         "bullet info": [3, 450, 5, 10, {"Colour": Fun.LIGHT_RED, "Bullet mod": [{"angle": "Player", "Interval": 25}]}],
+         "max ammo": 1,
+         "ammo pool": 1,
+         "crit rate": 0,
+         "crit multiplier": 0,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "eye_passive"},
+    "Void":
+        {"name": "Void",
+         "class": "Laser",
+         "sprite": "Sprites/Weapon/Anime.png",
+         "gunshot sound": "Silence",
+         "reloading sound": "Silence",
+         "jamming sound": "Silence",
+         "sound level": 0,
+         "accuracy": 0,
+         "spread": 0,
+         "handle": 10,
+         "recoil": 0,
+         "full auto": True,
+         "fire rate": 80,
+         "reload time": 0,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 0,
+         "bullet info": [3, 45, 5, 10, {"Colour": Fun.DARK_GREEN_ALT}],
+         "max ammo": 1,
+         "ammo pool": 1,
+         "crit rate": 0,
+         "crit multiplier": 0,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    "Spook":
+        {"name": "Spook",
+         "class": "Laser",
+         "sprite": "Sprites/Weapon/Anime.png",
+         "gunshot sound": "Silence",
+         "reloading sound": "Silence",
+         "jamming sound": "Silence",
+         "sound level": 0,
+         "accuracy": 0,
+         "spread": 0,
+         "handle": 10,
+         "recoil": 0,
+         "full auto": True,
+         "fire rate": 80,
+         "reload time": 0,
+         "bullet type": "Bullet",
+         "bullets per shot": 0,
+         "ammo cost": 0,
+         "bullet info": [3, 45, 5, 10, {"Colour": Fun.DARK_GREEN_ALT}],
+         "max ammo": 1,
+         "ammo pool": 1,
+         "crit rate": 0,
+         "crit multiplier": 0,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+    "Snake":
+        {"name": "Snake",
+         "class": "Laser",
+         "sprite": "Sprites/Weapon/Anime.png",
+         "gunshot sound": "Snake shoot",
+         "reloading sound": "Silence",
+         "jamming sound": "Silence",
+         "sound level": 0.6,
+         "accuracy": 0,
+         "spread": 0,
+         "handle": 10,
+         "recoil": 0,
+         "full auto": True,
+         "fire rate": 20,
+         "reload time": 0,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 0,
+         "bullet info": [3, 90, 7.5, 10, {"Colour": Fun.PURPLE}],
+         "max ammo": 1,
+         "ammo pool": 1,
+         "crit rate": 0,
+         "crit multiplier": 0,
+         "jam rate": 0,
+         "jam duration": 0,
          "laser sight": False,
          "alt fire": "none",
          "passive": "none"},

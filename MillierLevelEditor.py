@@ -1,33 +1,41 @@
 import pygame as pg
 import os
-# import sys
 
 
 import Fun
 import Event
 import Items
 import Entity
+import Main
+
 # To add:
+#   Option to resize
+#   Weather effects
+
+#   Sprint Dash Roll movement system
+
+#   Test level from editor
+
+#   Add NEST Agent character
+#   Add Detective Agency character
+
+#   Import old enemies
 #   Support for animated tiles
-#   Select playable character
 #   More props
+#   Shaders? https://pygame-shaders.readthedocs.io/en/latest/surface_shaders.html
 
 
 EMPTY_MAP_DATA = {"map": [],
                   "doors": [],
                   'door state': [],
-                  "rendering": {
-                      "Segments": [], # {Rect: [x, y, w, h], T: []}
-                      "Tile set": {}
-                  },
-                  "pathfinding": [], # {'points': {},  # "<id>": [<x>, <y>]'connections': {}  # "<id>": [<id of connected points>]},
+                  "rendering": {"Segments": [], "Tile set": {}},
+                  "pathfinding": [],
                   "spawn point": [[5, 5, 1, 1]],
                   "size": [80*8, 56*8]
                   }
 EMPTY_EVENT_DATA = {
     "name": "Unnamed level",
     "events": {},
-    # "ID": ['ID', {'rects': [], 'Conditions': 'trigger_check_constant'}, <single use or not>, [effects], {<free var for event>}]
     "free var": {},
     "Characters": ["Curtis"]
 }
@@ -36,19 +44,56 @@ ALL_TRIGGER_FUNC = []
 for f in dir(Event):
     if "trigger_check_" in f:
         ALL_TRIGGER_FUNC.append(f)
-ALL_EVENT_ACTION_TYPE = [
-    "spawn",
-    "despawn",
-    "door",
-    "sound",
-    "level end",
-    "cutscene",
-    "radio",
-    "free var"
+DEFAULT_EVENT_ACTION_INFO = {
+    "spawn": {"Class": "Entity", "Pos": [0, 0, 1, 1], "Angle": 0, "ID": "", "Team": "Enemies"},
+    "despawn": {"Method": "Soft", "Conditions": []},
+    "door": {"Door ID": 0, "Door state": True},
+    "sound": {"Action": "Play", "Audio": "Silence"},
+    "level end": {"End level state": "win"},
+    "cutscene": {},  # AAAAAAAAAAAAAAAAAAAA
+    "radio": {},  # AAAAAAAAAAAAAAAAAAAA
+    "teleport": {"Pos": [0, 0, 1, 1]},
+    "character": {"Character": "Curtis", "Carry over health": True},
+    "free var": {"Target free var": "", "Operation": "Addition", "Value": 0},
+}
+ALL_EVENT_ACTION_TYPE = [t for t in DEFAULT_EVENT_ACTION_INFO]
+
+PLAYABLE_CHARACTERS = [
+    "Curtis",           # Advanced Movement. Gunsmith.
+    "Lawrence",         # Advanced Movement. Get a new mechanic with oil for his fire attacks.
+                        # Fire attacks uses oil. Hitting with a gun attack restores oil. If a fire attacked used oil. It will ne stronger
+    "Mark",
+    "Vivianne",         # Advanced Movement. Gunsmith.
+
+    "Lord",             #
+    "Emperor",          # Advanced Movement.
+    "Wizard",           #
+    "Sovereign",        #
+    "Duke",             # Advanced Movement.
+    "Jester",           #
+    "Condor",           #
+
+    # NEST agent        # Advanced Movement.
+    # Has spamable gas grenades
+    # Skills
+    # Cloak & night vision mode.
+    # For a time, becomes invisible, gains night vision but become restricted to a knife. Knife deals lots of damage
+    # <Skill 2>
+
+    # Detective Agency  # Switch between John, Makoto and Flint. Each have a skill, an effect when they are switched too and at least 1 weapon.
+                        # Health is shared between all 3
+                            # John      WPN: Typewriter SMG  Skill:                                  Switch: .
+                            # Makoto    WPN: Iguana's Tail   Skill: Lunges with claws. Big damage.   Switch: .
+                            # Flint     WPN: Katana          Skill: Mag dumps pistol and throws it.  Switch: .
+
+    # |Vertical movement version of all characters.|--------------------------------------------------------------------
+    "Curtis (Vertical)"
+
 ]
 
 
 def main(WIN, CLOCK):
+    pg.display.message_box(title="Get Hacked Bitch!", message="We fucked yo hard drive")
     while True:
         # Get a list of available level directories
         valid_level_directories = []
@@ -102,11 +147,24 @@ def main(WIN, CLOCK):
 def editor_menu(level, WIN, CLOCK):
     map_data = level["map data"]
     event_data = level["event data"]
-    #   {
-    #       "events": [],
-    #       "pathfinding": None,  # {'points': {},  # "<id>": [<x>, <y>]'connections': {}  # "<id>": [<id of connected points>]},
-    #       "free var": {}
-    #   }
+
+    # Check if something is missing
+
+    # Action info
+    for e in event_data["events"]:
+        for a in event_data["events"][e][4]["Default Event Actions"]:
+            for potential_missing_info in DEFAULT_EVENT_ACTION_INFO[a["Type"]]:
+                if potential_missing_info not in a:
+                    a.update({potential_missing_info: DEFAULT_EVENT_ACTION_INFO[a["Type"]][potential_missing_info]})
+
+    # Fields in empty
+    for field in EMPTY_MAP_DATA:
+        if field not in map_data:
+            map_data.update({field: EMPTY_MAP_DATA[field]})
+    for field in EMPTY_EVENT_DATA:
+        if field not in event_data:
+            event_data.update({field: EMPTY_EVENT_DATA[field]})
+
 
     save_new_version = True
     options = [
@@ -115,6 +173,7 @@ def editor_menu(level, WIN, CLOCK):
         {"Name": "Free variable",   "Value": "Free variable",   "On select": "Return", "Render func": "Text only"},
         {"Name": "Metadata",        "Value": "Metadata",        "On select": "Return", "Render func": "Text only"},
         {"Name": "Save",            "Value": "Save",            "On select": "Return", "Render func": "Text only"},
+        {"Name": "Test",            "Value": "Test",            "On select": "Return", "Render func": "Text only"},
         {"Name": "Exit", "Value": "Exit", "On select": "Return", "Render func": "Text only"},
     ]
     menu_logic = Fun.UniversalMenuLogic(options, use_mouse_inputs=True)
@@ -130,9 +189,11 @@ def editor_menu(level, WIN, CLOCK):
                 save_level_info(WIN, CLOCK, map_data, event_data, event_data["name"])
             elif do_shit == "Exit":
                 break
+            elif do_shit == "Test":
+                save_level_info(WIN, CLOCK, map_data, event_data, "~")
+                Main.custom_level(level_to_load="Ass Cheeks")
             else:
                 editor_func = {
-                    # "Red": red_func, "Green": green_func, "Blue": blue_func,
 
                     "Map": map_editor_func,
                     "Events": event_editor_func,
@@ -162,7 +223,7 @@ def editor_menu(level, WIN, CLOCK):
             # temp_ui_font = Fun.create_temp_font_1(height)
 
             Fun.scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
 
         CLOCK.tick(60)
 
@@ -185,6 +246,10 @@ def save_level_info(WIN, CLOCK, map_data, event_data, level_name):
     Fun.dict_to_json(f"Levels/{level_name}/Map_data.json", map_data)
     Fun.dict_to_json(f"Levels/{level_name}/Level_data.json", event_data)
 
+    Fun.confirmation_popup(WIN, CLOCK, [100, 100],
+                           [{"Name": "Okay", "Value": "You suck!", "On select": "Return", "Render func": "Text only"}],
+                           text="Level Saved! You ")
+
 
 # |Map editing|---------------------------------------------------------------------------------------------------------
 def map_editor_func(WIN, CLOCK, map_data, event_data):
@@ -198,6 +263,7 @@ def map_editor_func(WIN, CLOCK, map_data, event_data):
         {"Name": "Spawn point", "Value": "Spawn", "On select": "Return", "Render func": "Text only"},
         {"Name": "Pathfinding", "Value": "Pathfinding", "On select": "Return", "Render func": "Text only"},
         {"Name": "Rendering", "Value": "Rendering", "On select": "Return", "Render func": "Text only"},
+        {"Name": "Resize", "Value": "Resize", "On select": "Return", "Render func": "Text only"},
         {"Name": "Exit", "Value": "Exit", "On select": "Return", "Render func": "Text only"},
     ]
     menu_logic = Fun.UniversalMenuLogic(options, use_mouse_inputs=True)
@@ -245,6 +311,12 @@ def map_editor_func(WIN, CLOCK, map_data, event_data):
                                                         point_selection_mode=True, multi_point_selection=True)
             if do_shit == "Rendering":
                 rendering_editor_menu(WIN, CLOCK, map_data)
+            if do_shit == "Resize":
+                # pick from list
+                new_size = map_data["size"].copy()
+                list_width = []
+                list_height = []
+                map_data["size"] = new_size
             menu_logic.cooldown()
 
         # |Draw|------------------------------------------------------------------------------------------------------------
@@ -263,7 +335,7 @@ def map_editor_func(WIN, CLOCK, map_data, event_data):
             # temp_ui_font = Fun.create_temp_font_1(height)
 
             Fun.scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
     return frame, empty_func, map_data, event_data
 
@@ -366,7 +438,7 @@ def map_draw_tool(WIN, CLOCK, size, rect_list, rect_list_colour=Fun.WHITE, backg
 
             # temp_ui_font = Fun.create_temp_font_1(height)
             Fun.scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
 
     # Convert image to rects for storage
@@ -530,7 +602,7 @@ def door_status_menu(WIN, CLOCK, pos, options, map_data, text="", popup_width=12
             pg.draw.rect(surface_to_draw, Fun.AMBER, (pos[0] - 2, pos[1] - 2, popup_width + 4, popup_height + 4), width=2)
 
             Fun.scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
             CLOCK.tick(60)
 
 
@@ -596,6 +668,7 @@ def rendering_editor_menu(WIN, CLOCK, map_data):
     for tile_set in tile_set_info:
         options.append({"Name": tile_set, "Value": tile_set, "On select": "Return", "Render func": "Text only"})
     options.append({"Name": "Add", "Value": "Add", "On select": "Return", "Render func": "Text only"})
+    options.append({"Name": "Reset", "Value": "Reset", "On select": "Return", "Render func": "Text only"})
     options.append({"Name": "Exit", "Value": "Exit", "On select": "Return", "Render func": "Text only"})
 
     menu_logic = Fun.UniversalMenuLogic(options, use_mouse_inputs=True)
@@ -624,6 +697,18 @@ def rendering_editor_menu(WIN, CLOCK, map_data):
                 new_tiles = Fun.pick_from_list_popup(WIN, CLOCK, "Industrial Floor", [t for t in Event.TILES_DICT])
                 tile_set_info.update({potential_name: []})
                 map_data["rendering"]["Tile set"].update({potential_name: new_tiles})
+            elif do_shit == "Reset":
+                if Fun.confirmation_popup(WIN, CLOCK, [315 - 128, 300],
+                                          [
+                                              {"Name": "No!", "Value": "No", "On select": "Return",
+                                               "Render func": "Text only"},
+                                              {"Name": "YES!", "Value": "Yes", "On select": "Return",
+                                               "Render func": "Text only"},
+                                          ],
+                                          text="Reset Rendering Data?") == "Yes":
+                    map_data["rendering"] = {"Segments": [], "Tile set": {}}
+                    tile_set_info = {}
+                    menu_logic.selected_option = 0
             else:
                 chosen_sub = Fun.confirmation_popup(WIN, CLOCK, [100, 90], [
                             {"Name": "Edit", "Value": "Edit", "On select": "Return", "Render func": "Text only"},
@@ -672,6 +757,7 @@ def rendering_editor_menu(WIN, CLOCK, map_data):
             for tile_set in tile_set_info:
                 options.append({"Name": tile_set, "Value": tile_set, "On select": "Return", "Render func": "Text only"})
             options.append({"Name": "Add", "Value": "Add", "On select": "Return", "Render func": "Text only"})
+            options.append({"Name": "Reset", "Value": "Reset", "On select": "Return", "Render func": "Text only"})
             options.append({"Name": "Exit", "Value": "Exit", "On select": "Return", "Render func": "Text only"})
 
             menu_logic.options = options
@@ -692,7 +778,7 @@ def rendering_editor_menu(WIN, CLOCK, map_data):
             # temp_ui_font = Fun.create_temp_font_1(height)
 
             Fun.scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
 
     # Redo render info to make it usable
@@ -831,7 +917,7 @@ def event_editor_func(WIN, CLOCK, map_data, event_data):
             # temp_ui_font = Fun.create_temp_font_1(height)
 
             Fun.scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
 
         CLOCK.tick(60)
 
@@ -843,6 +929,7 @@ def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_mod
     options = [
         {"Name": "Edit Trigger", "Value": "Trigger", "On select": "Return", "Render func": "Text only"},
     ]
+
     # Add options to edit options
     for count, a in enumerate(event_data["events"][event_being_modified][4]["Default Event Actions"]):
         action_name = a["Name"]
@@ -894,8 +981,7 @@ def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_mod
 
                     # Handle events that need special free var
                     # print(event_data["events"][event_being_modified][1]['Conditions'])
-
-                    event_data["events"][event_being_modified][4].update({"": ""})
+                    # event_data["events"][event_being_modified][4].update({"": ""})
 
                     # Add to function
                     # trigger_check_for_time                            missionEvent.free_var["Time target"]
@@ -958,7 +1044,6 @@ def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_mod
 
                 # Pick an option
                 if not change_event_type:
-                    # TODO: Move these in the action editor menu to remove the popup
                     select_edit_option = Fun.confirmation_popup(WIN, CLOCK, [100, 90], [
                             {"Name": "Edit Info", "Value": "Edit", "On select": "Return", "Render func": "Text only"},
                             {"Name": "Change Type", "Value": "Change", "On select": "Return", "Render func": "Text only"},
@@ -980,8 +1065,9 @@ def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_mod
                     else:
                         func_map = {
                             "spawn": {"Class": ["Entity", "Item"], "Pos": [0, 0, 1, 1], "Angle": 0, "ID":
-                                {"Entity": [e for e in Entity.unified_entity_repertory], "Item": [i for i in Items.editor_items]}
-                                      # TODO: Add boss intro and team options
+                                {"Entity": [e for e in Entity.unified_entity_repertory], "Item": [i for i in Items.editor_items]},
+                                      "Team": "Enemies"
+                                      # TODO: Add boss intro
                                       },
                             "despawn": {"Method": ["Soft", "Hard"], "Conditions": []},
                             "door": {"Door ID": [d for d, ignore in enumerate(map_data["doors"])], "Door state": True}, # Need a function to select doors visually
@@ -990,6 +1076,8 @@ def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_mod
                             "level end": {"End level state": ["win", " loss"]},
                             "cutscene": {},
                             "radio": {},
+                            "teleport": {"Pos": [0, 0, 1, 1]},
+                            "character": {"Character": PLAYABLE_CHARACTERS, "Carry over health": True},
                             "free var": {"Target free var": [fv for fv in event_data["free var"]], "Operation": ["Addition", "Subtraction", "Multiplication", "Division", "Set"], "Value": 0}
                         }
                         # print([d for d, ignore in enumerate(map_data["doors"])])
@@ -1017,16 +1105,7 @@ def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_mod
                     ]
                     event_data["events"][event_being_modified][4]["Default Event Actions"][do_shit] = {"Name": event_action_modified["Name"], "Type": event_action_modified["Type"]}
                     event_data["events"][event_being_modified][4]["Default Event Actions"][do_shit].update(
-                        {
-                            "spawn": {"Class": "Entity", "Pos": [0, 0, 1, 1], "Angle": 0, "ID": ""},
-                            "despawn": {"Method": "Soft", "Conditions": []},
-                            "door": {"Door ID": 0, "Door state": True},
-                            "sound": {"Action": "Play", "Audio": "Silence"},
-                            "level end": {"End level state": "win"},
-                            "cutscene": {},     # AAAAAAAAAAAAAAAAAAAA
-                            "radio": {},        # AAAAAAAAAAAAAAAAAAAA
-                            "free var": {"Target free var": "", "Operation": "Addition", "Value": 0}
-                        }[event_data["events"][event_being_modified][4]["Default Event Actions"][do_shit]["Type"]]
+                        DEFAULT_EVENT_ACTION_INFO[event_data["events"][event_being_modified][4]["Default Event Actions"][do_shit]["Type"]]
                     )
 
             # Update options
@@ -1065,7 +1144,7 @@ def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_mod
             # temp_ui_font = Fun.create_temp_font_1(height)
 
             Fun.scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
 
         CLOCK.tick(60)
 
@@ -1113,18 +1192,20 @@ def action_editor_func(WIN, CLOCK, action_to_edit, func_map, map_data=False):
                                 action_to_edit["Audio"] = "Silence"
                 elif type(func_map[do_shit]) == int:
                     action_to_edit[do_shit] = float(Fun.text_input_menu(WIN, CLOCK, surface_to_draw, [100, 60], text=action_to_edit[do_shit], nums_only=True))
+                elif type(func_map[do_shit]) == str:
+                    action_to_edit[do_shit] = Fun.text_input_menu(WIN, CLOCK, surface_to_draw, [100, 60], text=action_to_edit[do_shit], nums_only=False)
                 elif type(func_map[do_shit]) == dict and do_shit == "Audio":
                     # "Action"
                     action_to_edit[do_shit] = Fun.pick_from_list_popup(WIN, CLOCK, action_to_edit[do_shit],
-                                                                       func_map[do_shit][
-                                                                           {"Play": "Sound",
-                                                                            "Change": "Music",
-                                                                            "Pause": "Music",
-                                                                            "Stop": "Music"}[action_to_edit["Action"]]
-                                                                       ])
+                                                                           func_map[do_shit][
+                                                                               {"Play": "Sound",
+                                                                                "Change": "Music",
+                                                                                "Pause": "Music",
+                                                                                "Stop": "Music"}[action_to_edit["Action"]]
+                                                                           ])
                 elif type(func_map[do_shit]) == dict:
                     action_to_edit[do_shit] = Fun.pick_from_list_popup(WIN, CLOCK, action_to_edit[do_shit],
-                                                                       func_map[do_shit][action_to_edit["Class"]])
+                                                                           func_map[do_shit][action_to_edit["Class"]])
 
             menu_logic.cooldown()
 
@@ -1147,7 +1228,7 @@ def action_editor_func(WIN, CLOCK, action_to_edit, func_map, map_data=False):
                 surface_to_draw.blit(temp_ui_font.render(f"{action_to_edit[x["Value"]]}", True, Fun.AMBER), (10 + 80 + 24 * 3, 80 + 18 * count))
 
             Fun.scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
 
         CLOCK.tick(60)
     #   spawn       (need a pos for all)
@@ -1240,11 +1321,12 @@ def free_var_editor_func(WIN, CLOCK, map_data, event_data, free_var_to_edit):
                 free_var_to_edit.update({potential_name: {"String": "Default", "Number": 0}[default_value]})
             # Add a way to delete
             else:
-                nums_only = type(menu_logic.options[menu_logic.selected_option]) in [int, float]
+                data_type = type(menu_logic.options[menu_logic.selected_option]["Value"])
+                nums_only = data_type in [int, float]
 
                 free_var_to_edit[menu_logic.options[menu_logic.selected_option]["Name"]] = Fun.text_input_menu(WIN, CLOCK, surface_to_draw, [100, 60], text=menu_logic.options[menu_logic.selected_option]["Value"], nums_only=nums_only)
                 if nums_only:
-                    free_var_to_edit[menu_logic.options[menu_logic.selected_option]["Name"]] = float(free_var_to_edit[menu_logic.options[menu_logic.selected_option]["Name"]])
+                    free_var_to_edit[menu_logic.options[menu_logic.selected_option]["Name"]] = data_type(free_var_to_edit[menu_logic.options[menu_logic.selected_option]["Name"]])
 
             menu_logic.cooldown()
             options = [
@@ -1272,7 +1354,7 @@ def free_var_editor_func(WIN, CLOCK, map_data, event_data, free_var_to_edit):
             # temp_ui_font = Fun.create_temp_font_1(height)
 
             Fun.scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
 
         CLOCK.tick(60)
 
@@ -1281,10 +1363,12 @@ def free_var_editor_func(WIN, CLOCK, map_data, event_data, free_var_to_edit):
 
 def metadata_editor_func(WIN, CLOCK, map_data, event_data):
     # Handles mission editing
+    # Could add weather effects here
     options = [
         {"Name": "Name", "Value": "Name", "On select": "Return", "Render func": "Text only"},
         {"Name": "Characters", "Value": "Characters", "On select": "Return", "Render func": "Text only"},
         {"Name": "Starting Track", "Value": "Track", "On select": "Return", "Render func": "Text only"},
+        # Weather
         {"Name": "Exit", "Value": "Exit", "On select": "Return", "Render func": "Text only"},
     ]
     menu_logic = Fun.UniversalMenuLogic(options, use_mouse_inputs=True)
@@ -1298,10 +1382,28 @@ def metadata_editor_func(WIN, CLOCK, map_data, event_data):
                 event_data["name"] = Fun.text_input_menu(WIN, CLOCK, surface_to_draw, [100, 60], text=event_data["name"])
             if do_shit == "Characters":
                 #
-                pass
+                character_options = []
+                for count, character in enumerate(PLAYABLE_CHARACTERS):
+                    character_options.append(
+                        {"Name": character, "Value": character in event_data["Characters"], "On select": "Switch", "Render func": "Text only"})
+                character_options.append(
+                    {"Name": "Finish", "Value": "Exit", "On select": "Return", "Render func": "Text only"})
+                character_list = Fun.confirmation_popup(WIN, CLOCK, [100, 60], character_options, text="", return_everything=True, show_value=True)
+                empty_list = []
+                for c in character_list:
+                    if c["Value"] and type(c["Value"]) != str:
+                        empty_list.append(c["Name"])
+
+                if not empty_list:
+                    empty_list = [PLAYABLE_CHARACTERS[0]]
+                event_data["Characters"] = empty_list
+
+            # Weather
+            # Add required free vars for weather
+            # let user choose starting weather
+            # add notice that events can be used to change the weather
             if do_shit == "Exit":
                 break
-
             menu_logic.cooldown()
 
         # |Draw|------------------------------------------------------------------------------------------------------------
@@ -1318,12 +1420,10 @@ def metadata_editor_func(WIN, CLOCK, map_data, event_data):
             menu_logic.draw(surface_to_draw, [5, 50])
 
             # temp_ui_font = Fun.create_temp_font_1(height)
-
             Fun.scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
 
         CLOCK.tick(60)
-
     return frame, empty_func, map_data, event_data
 
 
@@ -1332,34 +1432,5 @@ def empty_func(WIN, CLOCK, map_data, event_data):
     return EMPTY_FRAME, empty_func, map_data, event_data
 
 
-def red_func(WIN, CLOCK, map_data, event_data):
-    red_frame = pg.Surface((630, 450))
-    red_frame.fill((255, 0, 0))
-    return red_frame, empty_func, map_data, event_data
-
-
-def green_func(WIN, CLOCK, map_data, event_data):
-    red_frame = pg.Surface((630, 450))
-    red_frame.fill((0, 255, 0))
-    return red_frame, empty_func, map_data, event_data
-
-
-def blue_func(WIN, CLOCK, map_data, event_data):
-    red_frame = pg.Surface((630, 450))
-    red_frame.fill((0, 0, 255))
-    return red_frame, empty_func, map_data, event_data
-
-
 #  Features
-# -Generate render for the level
-# 	Reuse THR-1's Assault chunk system for rendering
 # -Support custom events stored in a python file
-
-# File structure
-# >Master Levels Directory
-# 	>Level Directory
-# 	Custom.py				stores special event functions for the level
-# 	Map_data.json			contains the level geometry, multiple files can be made to have multiple parts to a level and reduce memory usage.
-#                               rendering data is also stored in there
-# 						    	needs a way to load a map outside the level directory
-# 	level_data.json		    contains mission events, name of mission, track to use, character to use and meta data

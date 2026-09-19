@@ -23,6 +23,7 @@ TILES_DICT = {
 
     "Iron Mine Floor":  Fun.TILE_SET_IRON_MINES_FLOOR,
     "Iron Mine Walls":  Fun.TILE_SET_IRON_MINES_WALL,
+    "Iron Mine Fence":  Fun.TILE_SET_IRON_MINES_FENCE,
 
     "Salt Flats Floor": Fun.TILE_SET_SALT_FLATS_FLOOR,
     "Salt Flats Walls": Fun.TILE_SET_SALT_FLATS_WALL,
@@ -107,7 +108,9 @@ def weather_handler(self, entities, bullets, level, time_passed, screen, CLOCK):
                         duration = random.randint(60, 120) * 3
                         entities["particles"].append(Particles.RandomParticle2(true_pos, Fun.ORANGE, random.uniform(2, 6),
                                                                          duration, 180, size=random.randint(2, 5)))
-
+        # Snowfall
+        # Thunder storm
+        # Severe Thunde Storm (adds flashbangs)
 
 def radio_handler(entities, transmission, cooldown=3):
     # This is just way better
@@ -259,7 +262,7 @@ def trigger_check_under_specified_amount_enemies(self, entities, bullets, level,
     for e in entities["entities"]:
         if e.team == "Players": continue
         l.append(e)
-    return len(l) <= self.free_var["Specified amount"]
+    return int(len(l)) <= int(self.free_var["Specified amount"])
 
 
 def trigger_check_no_enemies_in_rect(self, entities, bullets, level, time_passed):
@@ -350,6 +353,8 @@ def generic_event(self, entities, bullets, level, time_passed, screen, CLOCK):
                 "level end": generic_event_level_end,
                 "cutscene": generic_event_cutscene,
                 "radio": generic_event_radio,
+                "teleport": generic_event_teleport,
+                "character": generic_event_change_character,
                 "free var": generic_event_free_var
              }[a["Type"]](self, entities, bullets, level, time_passed, a)
             #                             "level end": {"End level state": "win"},
@@ -361,7 +366,6 @@ def generic_event(self, entities, bullets, level, time_passed, screen, CLOCK):
             Fun.print_to_error_stream(f"An error occurred: {e}")
 
 
-
 def generic_event_spawn(self, entities, bullets, level, time_passed, info):
     #       entity  (a boss intro can be selected for bosses,
     #                default team is "Enemy", can be set to "Players" to have allies)
@@ -371,7 +375,7 @@ def generic_event_spawn(self, entities, bullets, level, time_passed, info):
     if info["Class"] == "Item":
         Items.spawn_item(entities, info["ID"], info["Pos"])
     if info["Class"] == "Entity":
-        spawn_enemy(entities, info["ID"], info["Pos"], float(info["Angle"]))
+        spawn_enemy(entities, info["ID"], info["Pos"], float(info["Angle"]), team=info["Team"])
 
 
 def generic_event_despawn(self, entities, bullets, level, time_passed, info):
@@ -436,9 +440,32 @@ def generic_event_radio(self, entities, bullets, level, time_passed, info):
     pass
 
 
+def generic_event_teleport(self, entities, bullets, level, time_passed, info):
+    #   teleport
+    entities["entities"][0].pos = info["Pos"]
+    scrolling_target = Fun.find_scrolling_target([entities["entities"][0]])
+    level["scrolling target"] = scrolling_target
+    entities["scrolling"] = level["scrolling target"]
+
+
 def generic_event_change_character(self, entities, bullets, level, time_passed, info):
     #   change_character
-    pass
+    # Give full health.
+    # Set health to percentage
+    # "Carry over health"
+
+    old_character = entities["entities"][0]
+
+    new_character = Entity.Entity(Entity.player_repertory[ info["Character"]], pos=old_character.pos, start_angle=old_character.aim_angle)
+    if info["Carry over health"]:
+        new_character.health *= old_character.health / old_character.max_health
+        new_character.health = round(new_character.health)
+
+    new_character.func_input = old_character.func_input
+    new_character.vel = old_character.vel
+
+    # Overwrite old character
+    entities["entities"][0] = new_character
 
 
 def generic_event_free_var(self, entities, bullets, level, time_passed, info):
@@ -899,6 +926,10 @@ def thr_1(self, entities, bullets, level, time_passed, screen, CLOCK):
         entities["entities"][-1].free_var.update({"IS VERSUS": True})
 
 
+def bring_me_everyone(self, entities, bullets, level, time_passed, screen, CLOCK):
+    for e in Entity.everyone:
+        spawn_enemy(entities, e, [326, 128], angle=360*random.random(), team=Entity.enemy_repertory[e]["faction"])
+
 # Versus
 def versus_every_frame(self, entities, bullets, level, time_passed, screen, CLOCK):
     if time_passed == 0:
@@ -957,6 +988,7 @@ def load_level(level_to_load):
         "spawn point": [
             map_data["spawn point"][0][0] * 32 + 16, map_data["spawn point"][0][1] * 32 + 16
         ],
+        'characters': event_data["Characters"],
         'free var': event_data["free var"],
     }
     # Convert level geometry
@@ -1000,8 +1032,9 @@ def load_level(level_to_load):
     # Convert events
     for e in event_data["events"]:
 
-        event_info = event_data["events"]
 
+        event_info = event_data["events"]
+        print(event_info[e])
         trigger = {'rects': [], 'Conditions': event_info[e][1]["Conditions"]}
 
         for r in event_info[e][1]["rects"]:
@@ -1009,14 +1042,17 @@ def load_level(level_to_load):
 
         free_var = convert_pos(event_info[e][4])
 
+        # event_funcs = []
+
         event = [event_info[e][0], trigger, event_info[e][2],
-                 ["generic_event"], # Will need to update that for custom functions
+                 event_info[e][3], # Will need to update that for custom functions
                  free_var]
 
         level["events"].append(event)
 
     return level
 
-import Entity
-from Entity import ENEMY_NO_OWNER
 
+
+import Entity
+from Entity import ENEMY_NO_OWNER, enemy_repertory

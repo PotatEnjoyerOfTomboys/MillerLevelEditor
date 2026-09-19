@@ -30,7 +30,8 @@
                                           1
                                     ],
                                     "Angle": "100",
-                                    "ID": "CommieBot.Rifle"
+                                    "ID": "CommieBot.Rifle",
+                                    "Team": "Enemies"
                               },
                               {
                                     "Name": "Chopped Dick",
@@ -43,7 +44,8 @@
                                           1
                                     ],
                                     "Angle": 90.0,
-                                    "ID": "CommieBot.Hammer"
+                                    "ID": "CommieBot.Hammer",
+                                    "Team": "Enemies"
                               },
                               {
                                     "Name": "Buttocks",
@@ -69,7 +71,8 @@
                                           1
                                     ],
                                     "Angle": 0,
-                                    "ID": "Cover Large"
+                                    "ID": "Cover Large",
+                                    "Team": "Enemies"
                               },
                               {
                                     "Name": "Cover Moving",
@@ -82,7 +85,8 @@
                                           1
                                     ],
                                     "Angle": 0,
-                                    "ID": "Cover Moving"
+                                    "ID": "Cover Moving",
+                                    "Team": "Enemies"
                               },
                               {
                                     "Name": "Delete",
@@ -95,9 +99,31 @@
                                           1
                                     ],
                                     "Angle": 160.0,
-                                    "ID": "CommieBot.Molotov"
+                                    "ID": "CommieBot.Molotov",
+                                    "Team": "Enemies"
+                              },
+                              {
+                                    "Name": "Gang Wars",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          12,
+                                          35,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 90.0,
+                                    "ID": "Bulwark",
+                                    "Team": "TardWrangler"
+                              },
+                              {
+                                    "Name": "Change character",
+                                    "Type": "character",
+                                    "Character": "Curtis",
+                                    "Carry over health": true
                               }
-                        ]
+                        ],
+                        "": ""
                   }
             ],
             "Open Door 2": [
@@ -129,7 +155,8 @@
                                           1
                                     ],
                                     "Angle": 0,
-                                    "ID": "Smoke generator"
+                                    "ID": "Smoke generator",
+                                    "Team": "Enemies"
                               },
                               {
                                     "Name": "Barrel Red",
@@ -142,7 +169,8 @@
                                           1
                                     ],
                                     "Angle": 0,
-                                    "ID": "Big ol Red Barrel"
+                                    "ID": "Big ol Red Barrel",
+                                    "Team": "Enemies"
                               },
                               {
                                     "Name": "Barrel Oil",
@@ -155,7 +183,8 @@
                                           1
                                     ],
                                     "Angle": 0,
-                                    "ID": "Oil Barrel"
+                                    "ID": "Oil Barrel",
+                                    "Team": "Enemies"
                               },
                               {
                                     "Name": "Shrapnel Bom",
@@ -168,19 +197,63 @@
                                           1
                                     ],
                                     "Angle": 0,
-                                    "ID": "Shrapnel Bomb"
+                                    "ID": "Shrapnel Bomb",
+                                    "Team": "Enemies"
+                              },
+                              {
+                                    "Name": "Boom",
+                                    "Type": "sound",
+                                    "Action": "Play",
+                                    "Audio": "Sardine Blows Up"
                               }
                         ],
-                        "": "",
+                        "": "A",
                         "E. num ref": "Encounter_1",
-                        "E. num stage": "1",
+                        "E. num stage": 1,
                         "Specified amount": 0
+                  }
+            ],
+            "Winning the level": [
+                  "Winning the level",
+                  {
+                        "rects": [
+                              [
+                                    56,
+                                    39,
+                                    6,
+                                    4
+                              ]
+                        ],
+                        "Conditions": "trigger_check_rect"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": [
+                              {
+                                    "Name": "AAAAAAAAAAAAAa",
+                                    "Type": "sound",
+                                    "Action": "Play",
+                                    "Audio": "Sardine Blows Up"
+                              },
+                              {
+                                    "Name": "Winning",
+                                    "Type": "level end",
+                                    "End level state": "win"
+                              }
+                        ],
+                        "": ""
                   }
             ]
       },
       "free var": {
             "Encounter_1": 0,
-            "As": "1000"
+            "As": 1000
       },
-      "name": "Ass Cheeks"
+      "name": "Ass Cheeks",
+      "Characters": [
+            "Curtis"
+      ]
 }

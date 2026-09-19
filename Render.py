@@ -58,49 +58,24 @@ def new_draw_teammate_display(surface_to_draw, teammate, pos, w):
     surface_to_draw.blit(pg.transform.scale_by(surf, w/width), pos)
 
 
-def draw_bottom_health_bar(entity, surface_to_draw, round_scrolling):
-    x_pos = entity.pos[0] - 16 + round_scrolling[0]
-    y_pos = (entity.pos[1] + 10) + entity.thiccness // 2 + round_scrolling[1]
-
-    width = 32
-    health_height = 4
-    armour_height = 2
-
-    # Draws the health bar
-    pg.draw.rect(surface_to_draw, Fun.RED, (x_pos, y_pos, width * (entity.health / entity.max_health), health_height))
-    try:
-        pg.draw.rect(surface_to_draw, Fun.GREEN, (x_pos, y_pos, width * (entity.armour / entity.max_armour), armour_height))
-    except ZeroDivisionError:
-        pass
-    for count, skill in enumerate(entity.skills):
-        val = pg.math.clamp(255 * skill.recharge / skill.recharge_max, 0, 255)
-        mod = 0
-        if skill.active:
-            mod = val
-        pg.draw.rect(surface_to_draw, (mod, mod, val),
-                     (x_pos + 16 * count, y_pos+health_height, 16, 2))
-    if entity.status["Stunned"] > 0:
-        sprite = Fun.SPRITE_STUNNED[(entity.status["Stunned"] // 6) % 2]
-        surface_to_draw.blit(sprite, [entity.pos[0] + round_scrolling[0] - sprite.get_width() / 2,
-                                      entity.pos[1] - 15 + round_scrolling[1]])
-
-
 # |General Draw Function|-----------------------------------------------------------------------------------------------
 def draw(WIN, CLOCK, time_passed, scrolling, scrolling_target, level, entities, scrolling_mod=1):
-    player = entities["entities"][0]
-    # win_width, win_height = WIN.get_size()
 
-    actual_win_width, actual_win_height = WIN.get_size()
+    player = entities["entities"][0]
     win_width, win_height = Fun.FRAME_MAX_SIZE
     camera_rect = pg.Rect(-scrolling[0], -scrolling[1], win_width, win_height)
     frame = pg.Surface(Fun.FRAME_MAX_SIZE)
-    # surface_to_draw = WIN
     surface_to_draw = frame
+
+
     WIN.fill((0, 0, 0))
-    temp_ui_font = Fun.create_temp_font_1(win_height, font_name="Sprites/JetBrainsMono-SemiBold.ttf")
+
+    # temp_ui_font = Fun.create_temp_font_1(win_height, font_name="Sprites/JetBrainsMono-SemiBold.ttf")
     # Scrolling
     Fun.scrolling_manager(scrolling, scrolling_target, win_width, win_height, scrolling_speed=3.75*scrolling_mod)
-    # Limit scrolling when needed
+    round_scrolling = [round(scrolling[0]), round(scrolling[1])]
+
+    # TODO: Implement scrolling limiter
     # if "Limit scrolling" in level:
     #     if scrolling[0] > level["Limit scrolling"][0][1]:
     #         scrolling[0] = level["Limit scrolling"][0][1]
@@ -111,13 +86,10 @@ def draw(WIN, CLOCK, time_passed, scrolling, scrolling_target, level, entities, 
     #     elif scrolling[1] > level["Limit scrolling"][1][1]:
     #         scrolling[1] = level["Limit scrolling"][1][1]
 
-    round_scrolling = [round(scrolling[0]), round(scrolling[1])]
     # Draw level
     for wall in level["map"]:
-        pg.draw.rect(surface_to_draw, Fun.WALL_COLOUR, [wall.left + round_scrolling[0],
-                                                        wall.top + round_scrolling[1],
-                                                        wall.width,
-                                                        wall.height])
+        pg.draw.rect(surface_to_draw, Fun.WALL_COLOUR, [wall.left + round_scrolling[0], wall.top + round_scrolling[1],
+                                                        wall.width, wall.height])
     # Draw map
     tiles = level["rendering"]["Tile set"] # = {"Wall": TILE_SET_SEWER_FLOOR, "Floor": TILE_SET_SEWER_WALL}
 
@@ -126,7 +98,13 @@ def draw(WIN, CLOCK, time_passed, scrolling, scrolling_target, level, entities, 
             for t in level["rendering"]["Tile set"]:
                 if t not in segment:
                     continue
-                draw_multiple_rects(surface_to_draw, segment[t], round_scrolling, tiles[t], mode="All")
+                draw_multiple_rects(surface_to_draw, segment[t], round_scrolling, tiles[t])
+
+    for count, door in enumerate(level['door state']):
+        if door:
+            wall = level["map"][count]
+            Fun.draw_transparent_rect(surface_to_draw, [wall.left + round_scrolling[0], wall.top + round_scrolling[1],
+                                                        wall.width, wall.height], (255, 0, 255), 128)
 
     players = []
     for p_diddy in range(4):
@@ -138,53 +116,13 @@ def draw(WIN, CLOCK, time_passed, scrolling, scrolling_target, level, entities, 
         if e.team == "Players":
             players.append(e)
 
-    if 'APC path' in level['free var']:
-        if level['free var']['APC path']:
-            apc = None
-            for p in players:
-                if "IS AN APC" in p.free_var:
-                    apc = p
-                    break
-            s_pos = apc.pos
-            for p in level['free var']['APC path']:
-                pg.draw.line(surface_to_draw, Fun.RED,
-                              [s_pos[0] + round_scrolling[0], s_pos[1] + round_scrolling[1]],
-                              [p[0] + round_scrolling[0], p[1] + round_scrolling[1]], 3)
-                s_pos = p
-
     for particle in entities["background particles"]:
         particle.draw(surface_to_draw, round_scrolling)
 
-    # Draw the entities
-    # Only draw enemies when they are within targeting range for players
-
-    # Won't DO: Optimize this pile of shit
-    for e in entities["entities"]:
-        # Skip checks if entity is a player or an enemy that has to be drawn no matter what
-        if e in players or e.status["Visible"] > 0 or e.force_draw:
-            e.draw(surface_to_draw, round_scrolling)
-            draw_bottom_health_bar(e, surface_to_draw, round_scrolling)
-            continue
-        # Skip hidden enemies
-        if e.status["Stealth"] > 0: continue
-        # Only draw enemies who can be seen by a player
-        for ee in players:
-            # Get stealth range modifier
-            detection_modifier = pg.math.clamp(e.stealth_mod * ee.stealth_counter, -20, 1)
-            if not (Fun.distance_between(e.pos, ee.pos) < ee.targeting_range // 10 * detection_modifier or
-                    Fun.check_point_in_cone(
-                        ee.targeting_range * detection_modifier, ee.pos[0], ee.pos[1],
-                        e.pos[0], e.pos[1],
-                        ee.angle, ee.targeting_angle)):
-                continue
-            if Fun.wall_between(e.pos, ee.pos, level): continue
-            e.draw(surface_to_draw, round_scrolling)
-            draw_bottom_health_bar(e, surface_to_draw, round_scrolling)
-            break
-
-    # Draw the items
-    for item_to_draw in entities["items"]:
-        item_to_draw.draw(surface_to_draw, round_scrolling)
+    # Draw the entities and items
+    render_list = entities["entities"] + entities["items"]
+    for e in sorted(render_list, key=lambda  x: x.z):   # sorted makes sure that the ones with lowest y value goes first
+        e.draw(surface_to_draw, round_scrolling, players, level)
 
     # Draw the bullets
     for bullet_to_draw in entities["bullets"]:
@@ -195,6 +133,9 @@ def draw(WIN, CLOCK, time_passed, scrolling, scrolling_target, level, entities, 
         particle.draw(surface_to_draw, round_scrolling)
 
     # Shadows
+    # Re-implement the old shadow system
+
+    # FOV
     background = Fun.BLACK
     light = Fun.WHITE
     surface_shadow = pg.Surface((win_width, win_height))
@@ -221,21 +162,10 @@ def draw(WIN, CLOCK, time_passed, scrolling, scrolling_target, level, entities, 
 
     # |UI|--------------------------------------------------------------------------------------------------------------
     # Status bars
-    # All of this is rendered below the player, allies and enemies
-    boss_count = 0
+    # All of this is rendered below the entities
     teammates_count = 0
-
-    h = Fun.FRAME_MAX_SIZE[1] / 20.8
     w = Fun.FRAME_MAX_SIZE[0] // 4
     for p in players:
-        # Health
-        # [583, 416]
-        h = Fun.FRAME_MAX_SIZE[1]/20.8
-        w = Fun.FRAME_MAX_SIZE[0]//4   # 100
-        # draw_teammate_display(
-        #     surface_to_draw, p, [
-         #         0 + w * teammates_count + 2 * teammates_count, 2, w, h
-        #     ], temp_ui_font)
         new_draw_teammate_display(
             surface_to_draw, p, [
                 0 + w * teammates_count + 2 * teammates_count, 2
@@ -256,7 +186,6 @@ def draw(WIN, CLOCK, time_passed, scrolling, scrolling_target, level, entities, 
                 mod += 2
 
     # Add an indicator that shows the enemies position
-    # if "Is VIP" in e.free_var:
     for indicator in entities["entities"]:
             # Check if the enemy is far enough
         if math.hypot(indicator.pos[0] - player.pos[0], indicator.pos[1] - player.pos[1]) > win_height // 2:
@@ -266,29 +195,13 @@ def draw(WIN, CLOCK, time_passed, scrolling, scrolling_target, level, entities, 
             elif "Is VIP" in indicator.free_var:
                 colour = Fun.AMBER_LIGHT
 
-                # Get angle
+            # Get angle
             indicator_angle = Fun.angle_between(indicator.pos, player.pos)
-                # Draw a small rectangle
+            # Draw a small rectangle
             pg.draw.rect(surface_to_draw, colour, (
                     (win_width / 2 - 2) - 150 * math.cos(indicator_angle * math.pi / 180),
                     (win_height / 2 - 2) - 150 * math.sin(indicator_angle * math.pi / 180),
-                    4, 4)
-                             )
-
-    # Draw mini map
-    map_surface = pg.Surface((64, 64))
-    # pg.draw.rect(surface_to_draw, Fun.UI_COLOUR_NEW_BACKGROUND, [frame.get_width() - 112, 0, 112, 112])
-    map_surface.fill(Fun.UI_COLOUR_NEW_BACKGROUND)
-    z_mod = 16
-    pos = scrolling_target
-    for wall in level["map"]:
-        pg.draw.rect(map_surface, Fun.UI_COLOUR_NEW_BACKDROP, [wall.left // z_mod + pos[0] // z_mod + 16,#  + x_mod,
-                                                       wall.top // z_mod + pos[1] // z_mod  + 20,# + y_mod,
-                                                     wall.width // z_mod,
-                                                      wall.height // z_mod])
-    pg.draw.rect(map_surface, Fun.AMBER_LIGHT, [32, 32, 2, 2])
-    map_surface.set_alpha(196)
-    surface_to_draw.blit(map_surface, [16, win_height-64-16])
+                    4, 4))
 
     # Render any
     for particle in entities["UI particles"]:
@@ -298,9 +211,59 @@ def draw(WIN, CLOCK, time_passed, scrolling, scrolling_target, level, entities, 
     Fun.scale_render(WIN, surface_to_draw, CLOCK)
 
 
-def draw_multiple_rects(WIN, rects, round_scrolling, tile_set, mode="All", modified_index=(1, 2, 3, 4, 0, 5, 6, 7, 8)):
+def draw_multiple_rects(WIN, rects, round_scrolling, tile_set, modified_index=(1, 2, 3, 4, 0, 5, 6, 7, 8)):
     for t in rects:
-        Fun.draw_environment_from_tile_set(WIN, (t[0], t[1]), t[2], t[3],
-                                           round_scrolling, mode, tile_set=tile_set, modified_index=modified_index)
+        draw_environment_from_tile_set(WIN, (t[0], t[1]), t[2], t[3], round_scrolling,
+                                       tile_set=tile_set, modified_index=modified_index)
 
+
+def draw_environment_from_tile_set(WIN, top_left_corner, width, height, scrolling,
+                                   tile_set=Fun.TILE_SET_INDUSTRIAL_FLOOR, modified_index=(1, 2, 3, 4, 0, 5, 6, 7, 8)):
+    # This function uses a tile set to render a rectangular area
+    internal_width = round((width - Fun.TILES_SIZE * 2) // Fun.TILES_SIZE)
+
+    if height > Fun.TILES_SIZE:
+        # Draw the top layer
+        # Draw the left corner
+        WIN.blit(tile_set[modified_index[0]],
+                     [top_left_corner[0] + scrolling[0],
+                      top_left_corner[1] + scrolling[1]])
+        # Draw the middle
+        for x in range(internal_width):
+            WIN.blit(tile_set[modified_index[1]],
+                         [top_left_corner[0] + Fun.TILES_SIZE + (x * Fun.TILES_SIZE) + scrolling[0],
+                          top_left_corner[1] + scrolling[1]])
+        # Draw the right corner
+        WIN.blit(tile_set[modified_index[2]],
+                     [top_left_corner[0] + width - Fun.TILES_SIZE + scrolling[0],
+                      top_left_corner[1] + scrolling[1]])
+
+        # Draw the middle layers
+        for y in range(round((height - Fun.TILES_SIZE * 2) // Fun.TILES_SIZE)):
+            # Draw the left side
+            WIN.blit(tile_set[modified_index[3]],
+                         [top_left_corner[0] + scrolling[0],
+                          top_left_corner[1] + Fun.TILES_SIZE + (y * Fun.TILES_SIZE) + scrolling[1]])
+            # Draw the middle
+            for x in range(internal_width):
+                WIN.blit(tile_set[modified_index[4]],
+                             [top_left_corner[0] + Fun.TILES_SIZE + (x * Fun.TILES_SIZE) + scrolling[0],
+                              top_left_corner[1] + Fun.TILES_SIZE + (y * Fun.TILES_SIZE) + scrolling[1]])
+            # Draw the right side
+            WIN.blit(tile_set[modified_index[5]],
+                         [top_left_corner[0] + width - Fun.TILES_SIZE + scrolling[0],
+                          top_left_corner[1] + Fun.TILES_SIZE + (y * Fun.TILES_SIZE) + scrolling[1]])
+
+    # Draws the bottom layer
+    for x in range(internal_width):
+        WIN.blit(tile_set[modified_index[7]],
+                     [top_left_corner[0] + Fun.TILES_SIZE + (x * Fun.TILES_SIZE) + scrolling[0],
+                      top_left_corner[1] + height - Fun.TILES_SIZE + scrolling[1]])
+    # Draw the sides
+    WIN.blit(tile_set[modified_index[6]],
+                 [top_left_corner[0] + scrolling[0],
+                  top_left_corner[1] + height - Fun.TILES_SIZE + scrolling[1]])
+    WIN.blit(tile_set[modified_index[8]],
+                 [top_left_corner[0] + width - Fun.TILES_SIZE + scrolling[0],
+                  top_left_corner[1] + height - Fun.TILES_SIZE + scrolling[1]])
 

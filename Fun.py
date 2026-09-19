@@ -24,7 +24,7 @@ import sys
 #   M10, agency investigate     Might actually include the investigation mechanic
 #   M11, NEST storage raid      .
 #   M12, Sparrow
-#   M13, Raid on iron mine      .
+#   M13, Raid on iron mine      .           Scrub Jay alt path
 #   M14, Goes in the desert     .
 
 # Fun.py is not fun
@@ -43,6 +43,11 @@ DECODING = locale.getpreferredencoding()
 SPOOKY_DAY = start_october <= current_date <= start_november
 DELTA_TIME = [60/17]
 
+
+#
+class Adam:
+    def __init__(self):
+        self.z = 0
 
 # |Testing|-------------------------------------------------------------------------------------------------------------
 def print_to_error_stream(*a):
@@ -93,8 +98,12 @@ def get_from_json(filename, requested_info):
 
 
 def get_image(img):
-    return pg.image.load(os.path.join(img)).convert_alpha()
+    try:
+        return pg.image.load(os.path.join(img)).convert_alpha()
+    except FileNotFoundError:
+        return MISSING_TEXTURE
 
+MISSING_TEXTURE = pg.image.load('Sprites/Missing.PNG').convert_alpha()
 
 # |Settings|------------------------------------------------------------------------------------------------------------
 def get_default_inputs():
@@ -614,7 +623,7 @@ def sound_test(self, win, CLOCK):
             y_pos = win_height // 3 + (name_offset * x[0]) - chosen_option * name_offset
             win.blit(UI_FONT.render(x[1], True, UI_COLOUR_FONT), (125, y_pos))
 
-        pg.display.update()
+        pg.display.flip()
         CLOCK.tick(60)
     pg.mixer.music.unpause()
 
@@ -957,6 +966,7 @@ TILE_SET_SAND_CAVES_WALL = tile_set_creator(TILES_SAND_CAVES.subsurface((96, 0, 
 
 TILE_SET_IRON_MINES_FLOOR = tile_set_creator(TILES_IRON_MINES)
 TILE_SET_IRON_MINES_WALL = tile_set_creator(TILES_IRON_MINES.subsurface((96, 0, 96, 96)))
+TILE_SET_IRON_MINES_FENCE = tile_set_creator(TILES_IRON_MINES.subsurface((192, 0, 96, 96)))
 
 TILE_SET_SALT_FLATS_FLOOR = tile_set_creator(TILES_SALT_FLATS)
 TILE_SET_SALT_FLATS_WALL = tile_set_creator(TILES_SALT_FLATS.subsurface((96, 0, 96, 96)))
@@ -1636,7 +1646,7 @@ def text_input_menu(WIN, CLOCK, frame_1, pos, text="", nums_only=False):
             pg.draw.rect(surface_to_draw, AMBER, (pos[0] - 2, pos[1] - 2, popup_width + 4, popup_height + 4), width=2)
 
             scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
             CLOCK.tick(60)
     #
 
@@ -1686,8 +1696,8 @@ def confirmation_popup(WIN, CLOCK, pos, options, text="", do_crt=False, popup_wi
                 for count, x in enumerate(menu_logic.options):
                     if x["Value"] in ["Exit"]:
                         continue
-                    pos = (80 + 24 * op_width, 30+ height_mod + 18 * count)
-                    popup_uni.blit(temp_ui_font.render(f"{x["Value"]}", True, AMBER), pos)
+                    pos_value = (80 + 24 * op_width, 30+ height_mod + 18 * count)
+                    popup_uni.blit(temp_ui_font.render(f"{x["Value"]}", True, AMBER), pos_value)
 
             if text != "":
                 # text_lines
@@ -1702,7 +1712,7 @@ def confirmation_popup(WIN, CLOCK, pos, options, text="", do_crt=False, popup_wi
                 crt(surface_to_draw)
                 surface_to_draw.blit(menu_overlay, [0, 0])
             scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
             CLOCK.tick(60)
 
 
@@ -1769,7 +1779,7 @@ def title_screen(WIN, CLOCK, controls):
             crt(surface_to_draw)
             surface_to_draw.blit(menu_overlay, [0, 0])
             scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
             CLOCK.tick(60)
 
         if starting_intro and time_spent_on_menu >= intro_start_time + transition_time:
@@ -1860,7 +1870,7 @@ def main_menu(WIN, CLOCK):
                 menu_transition_doom_screen_melt(WIN, CLOCK, WIN, win_copy)
                 play_music("Menu")
 
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
 
     return return_value
@@ -1956,7 +1966,7 @@ def party_selection_menu(WIN, CLOCK):
             if transition:
                 transition = False
                 menu_transition_doom_screen_melt(WIN, CLOCK, WIN, win_copy)
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
 
 
@@ -2049,7 +2059,7 @@ def settings_menu(WIN, CLOCK, also_pause=False):
             if transition:
                 transition = False
                 menu_transition_doom_screen_melt(WIN, CLOCK, WIN, win_copy)
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
     for x in range(10):
         x_mod -= 21
@@ -2074,7 +2084,7 @@ def settings_menu(WIN, CLOCK, also_pause=False):
                 menu_transition_doom_screen_melt(WIN, CLOCK, WIN, win_copy)
             crt(surface_to_draw)
             surface_to_draw.blit(menu_overlay, [0, 0])
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
     # Saves
     dict_to_json("Settings.json", {"SFX": menu_logic.options[0]["Value"],
@@ -2143,7 +2153,7 @@ def rebind_menu_master(WIN, CLOCK):
             crt(surface_to_draw)
             surface_to_draw.blit(menu_overlay, [0, 0])
             scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
 
 
@@ -2310,7 +2320,7 @@ def rebind_menu_keyboard_mouse(WIN, CLOCK):
             if transition:
                 transition = False
                 menu_transition_doom_screen_melt(WIN, CLOCK, WIN, win_copy)
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
 
     if save:
@@ -2549,7 +2559,7 @@ def rebind_menu_controller(WIN, CLOCK):
             if transition:
                 transition = False
                 menu_transition_doom_screen_melt(WIN, CLOCK, WIN, win_copy)
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
 
     if save:
@@ -2643,7 +2653,7 @@ def game_intro(WIN, CLOCK, controls, player):
         crt(surface_to_draw)
         surface_to_draw.blit(menu_overlay, [0, 0])
         scale_render(WIN, surface_to_draw, CLOCK)
-        pg.display.update()
+        pg.display.flip()
         CLOCK.tick(60)
 
 
@@ -2808,7 +2818,7 @@ def story_event(WIN, CLOCK, party, event_to_play):
                     crt(surface_to_draw)
                     scale_render(WIN, surface_to_draw, CLOCK)
                     transition = menu_transition_handler(WIN, CLOCK, frame_1, transition)
-                    pg.display.update()
+                    pg.display.flip()
                 CLOCK.tick(60)
 
             sprites.append(e["Image"])
@@ -2865,7 +2875,7 @@ def story_event(WIN, CLOCK, party, event_to_play):
                 crt(surface_to_draw)
                 scale_render(WIN, surface_to_draw, CLOCK)
                 transition = menu_transition_handler(WIN, CLOCK, frame_1, transition)
-                pg.display.update()
+                pg.display.flip()
             CLOCK.tick(60)
             timer += 1
 
@@ -2916,7 +2926,7 @@ def pygame_splash_screen(WIN, CLOCK):
             # surface_to_draw.blit(text_2, [315 - text_2.get_width() // 2, 290])
 
             scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
             CLOCK.tick(60)
 
 
@@ -2971,7 +2981,7 @@ def my_own_shit(WIN, CLOCK):
             surface_to_draw.blit(text_2, [315 - text_2.get_width() // 2, 290])
 
             scale_render(WIN, surface_to_draw, CLOCK)
-            pg.display.update()
+            pg.display.flip()
             CLOCK.tick(60)
 
 
@@ -3042,7 +3052,7 @@ def game_credits(WIN, clock):
                         base_x_pos += 630 // (1 + len(x))
 
             scale_render(WIN, surface_to_draw, clock)
-            pg.display.update()
+            pg.display.flip()
         clock.tick(60)
 
 
@@ -3227,7 +3237,7 @@ def mission_menu(WIN, CLOCK, missions_to_choose, party_info, run_info):
             surface_to_draw.blit(menu_overlay, [0, 0])
             scale_render(WIN, surface_to_draw, CLOCK)
             transition = menu_transition_handler(WIN, CLOCK, frame_1, transition)
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
 
     # Get the chosen mission
@@ -3422,7 +3432,7 @@ def encyclopedia_menu(WIN, CLOCK):
             surface_to_draw.blit(menu_overlay, [0, 0])
             scale_render(WIN, surface_to_draw, CLOCK)
             transition = menu_transition_handler(WIN, CLOCK, frame_1, transition)
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
 
 
@@ -3502,7 +3512,7 @@ def character_menu_draw(WIN, CLOCK, out_party, menu_logic, transition, win_copy,
     if transition:
         transition = False
         menu_transition_doom_screen_melt(WIN, CLOCK, WIN, win_copy)
-    pg.display.update()
+    pg.display.flip()
     return transition
 
 
@@ -3821,7 +3831,7 @@ def weapons_menu(WIN, CLOCK, party_info, run_info, exit_message="Continue", from
             if transition:
                 transition = False
                 menu_transition_doom_screen_melt(WIN, CLOCK, WIN, win_copy)
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
 
     # Rewrite run info to switch the weapons.
@@ -3923,7 +3933,7 @@ def versus_arena_menu(WIN, CLOCK, missions_to_choose, party_info):
             surface_to_draw.blit(menu_overlay, [0, 0])
             scale_render(WIN, surface_to_draw, CLOCK)
             transition = menu_transition_handler(WIN, CLOCK, frame_1, transition)
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
 
     # Get the chosen mission
@@ -4116,7 +4126,7 @@ def versus_end_menu(WIN, CLOCK, party_info, status):
             transition = False
             menu_transition_doom_screen_melt(WIN, CLOCK, WIN, win_copy)
             play_music("Menu")
-        pg.display.update()
+        pg.display.flip()
         CLOCK.tick(60)
         end_timer -= 1
 
@@ -5002,7 +5012,7 @@ def shop_menu(WIN, CLOCK, party_info, run_info):
             surface_to_draw.blit(menu_overlay, [0, 0])
             scale_render(WIN, surface_to_draw, CLOCK)
             transition = menu_transition_handler(WIN, CLOCK, frame_1, transition)
-            pg.display.update()
+            pg.display.flip()
         CLOCK.tick(60)
 
     return run_info
@@ -5080,7 +5090,7 @@ def end_menu(WIN, CLOCK, status_line, elements_to_show, comment_line, elements_t
             transition = False
             menu_transition_doom_screen_melt(WIN, CLOCK, WIN, win_copy)
             play_music("Menu")
-        pg.display.update()
+        pg.display.flip()
         CLOCK.tick(60)
         end_timer -= 1
 
@@ -5257,7 +5267,7 @@ def loading_screen(WIN, CLOCK):
 
     scale_render(WIN, surface_to_draw, CLOCK)
     menu_transition_handler(WIN, CLOCK, frame_1, transition)
-    pg.display.update()
+    pg.display.flip()
 
 
 # |Menu effects|--------------------------------------------------------------------------------------------------------
@@ -5344,7 +5354,7 @@ def menu_transition_doom_screen_melt(WIN, CLOCK, frame_1, frame_2):
         #     break
 
         scale_render(WIN, surface_to_draw, CLOCK)
-        pg.display.update()
+        pg.display.flip()
         CLOCK.tick(60)
     #
 
@@ -5422,63 +5432,6 @@ def blitRotate2(surf, image, topleft, angle):
 
     surf.blit(rotated_image, new_rect.topleft)
     # pg.draw.rect(surf, (255, 0, 0), new_rect, 2)
-
-
-def draw_environment_from_tile_set(WIN, top_left_corner, width, height, rounded_scrolling, mode,
-                                   tile_set=TILE_SET_INDUSTRIAL_FLOOR, modified_index=(1, 2, 3, 4, 0, 5, 6, 7, 8)):
-    # This function uses a tile set to render a rectangular area
-    # It was first made to draw buildings
-    if mode == "UI":
-        return
-
-    internal_width = round((width - TILES_SIZE * 2) // TILES_SIZE)
-
-    if mode in ("Foreground", "All"):
-
-        # Draw the top layer
-        # Draw the left corner
-        WIN.blit(tile_set[modified_index[0]],
-                 [top_left_corner[0] + rounded_scrolling[0],
-                  top_left_corner[1] + rounded_scrolling[1]])
-        # Draw the middle
-        for x in range(internal_width):
-            WIN.blit(tile_set[modified_index[1]],
-                     [top_left_corner[0] + TILES_SIZE + (x * TILES_SIZE) + rounded_scrolling[0],
-                      top_left_corner[1] + rounded_scrolling[1]])
-        # Draw the right corner
-        WIN.blit(tile_set[modified_index[2]],
-                 [top_left_corner[0] + width - TILES_SIZE + rounded_scrolling[0],
-                  top_left_corner[1] + rounded_scrolling[1]])
-
-        # Draw the middle layers
-        for y in range(round((height - TILES_SIZE * 2) // TILES_SIZE)):
-            # Draw the left side
-            WIN.blit(tile_set[modified_index[3]],
-                     [top_left_corner[0] + rounded_scrolling[0],
-                      top_left_corner[1] + TILES_SIZE + (y * TILES_SIZE) + rounded_scrolling[1]])
-            # Draw the middle
-            for x in range(internal_width):
-                WIN.blit(tile_set[modified_index[4]],
-                         [top_left_corner[0] + TILES_SIZE + (x * TILES_SIZE) + rounded_scrolling[0],
-                          top_left_corner[1] + TILES_SIZE + (y * TILES_SIZE) + rounded_scrolling[1]])
-            # Draw the right side
-            WIN.blit(tile_set[modified_index[5]],
-                     [top_left_corner[0] + width - TILES_SIZE + rounded_scrolling[0],
-                      top_left_corner[1] + TILES_SIZE + (y * TILES_SIZE) + rounded_scrolling[1]])
-
-    if mode in ("Background", "All"):
-        # Draws the bottom layer
-        for x in range(internal_width):
-            WIN.blit(tile_set[modified_index[7]],
-                     [top_left_corner[0] + TILES_SIZE + (x * TILES_SIZE) + rounded_scrolling[0],
-                      top_left_corner[1] + height - TILES_SIZE + rounded_scrolling[1]])
-        # Draw the sides
-        WIN.blit(tile_set[modified_index[6]],
-                 [top_left_corner[0] + rounded_scrolling[0],
-                  top_left_corner[1] + height - TILES_SIZE + rounded_scrolling[1]])
-        WIN.blit(tile_set[modified_index[8]],
-                 [top_left_corner[0] + width - TILES_SIZE + rounded_scrolling[0],
-                  top_left_corner[1] + height - TILES_SIZE + rounded_scrolling[1]])
 
 
 def draw_transparent_rect(WIN, rect, colour, alpha_level):
@@ -5702,7 +5655,6 @@ def scale_render(WIN, surface_to_draw, CLOCK):
     WIN.blit(surface_to_draw, (width // 2 - slide_width // 2, height // 2 - slide_height // 2))
     WIN.blit(FONTS["sma"].render(f"FPS {round(CLOCK.get_fps())}", True, UI_COLOUR_FONT),
              (width * 0.925, height * 0.95))
-    # WIN.blit(surface_to_draw, (0, 0))
 
 
 def find_scrolling_target(scrolling_target_entities):
@@ -5988,7 +5940,7 @@ def get_stretcher_target_super_kidnapping(self, entities, targeting_range):
 def find_closest_in_circle_check_name(self, entities, targeting_range, name, send_entity=False):
     dist = targeting_range
     target = False
-    for e in entities["enemies"]:
+    for e in entities["entities"]:
         if e.name != name:
             continue
 
@@ -6318,54 +6270,27 @@ def wall_between(p1, p2, level):
     return False
 
 
-def collision_check_old(self, walls):   # New version
-    future_rect = self.collision_box.copy()
-    future_rect.move(self.vel[0], self.vel[1])
-    thick = self.thiccness // 2 + 1
-
-    # Does the collisions
-    for wall in walls:
-        if future_rect.colliderect(wall):
-            top_left = wall.collidepoint(future_rect.topleft)
-            top_right = wall.collidepoint(future_rect.topright)
-            bottom_left = wall.collidepoint(future_rect.bottomleft)
-            bottom_right = wall.collidepoint(future_rect.bottomright)
-
-            top_side = top_left and top_right
-            bottom_side = bottom_left and bottom_right
-            right_side = bottom_right and top_right
-            left_side = bottom_left and top_left
-
-            all_side = top_side and bottom_side and right_side and left_side
-
-            if all_side:
-                self.vel[0] *= -1
-                self.vel[1] *= -1
-            else:
-                if top_side and not bottom_side:
-                    self.pos[1] = wall.bottom + thick
-                if bottom_side and not top_side:
-                    self.pos[1] = wall.top - thick
-
-                if right_side and not left_side:
-                    self.pos[0] = wall.left - thick
-                if left_side and not right_side:
-                    self.pos[0] = wall.right + thick
-
-            self.collision_box = pg.Rect(self.pos[0] - self.thiccness / 2, self.pos[1] - self.thiccness / 2,
-                                         self.thiccness, self.thiccness)
-            future_rect = self.collision_box.copy()
-            future_rect.move(self.vel[0], self.vel[1])
-
-
 def collision_check(self, walls):   # New new version
     future_rect = self.collision_box.copy()
     future_rect.move(self.vel[0], self.vel[1])
     thick = self.thiccness // 2 + 1
 
+
     # Does the collisions
     for wall in walls:
         if future_rect.colliderect(wall):
+
+            if wall.clipline(self.pos, future_rect.center):
+                self.pos[0] -= self.vel[0]
+                self.pos[1] -= self.vel[1]
+                self.vel[0] = 0
+                self.vel[1] = 0
+                self.collision_box = pg.Rect(self.pos[0] - self.thiccness / 2, self.pos[1] - self.thiccness / 2,
+                                             self.thiccness, self.thiccness)
+                future_rect = self.collision_box.copy()
+                future_rect.move(self.vel[0], self.vel[1])
+                continue
+
             top_left = wall.collidepoint(future_rect.topleft)
             top_right = wall.collidepoint(future_rect.topright)
             bottom_left = wall.collidepoint(future_rect.bottomleft)
@@ -6376,23 +6301,17 @@ def collision_check(self, walls):   # New new version
             right_side = bottom_right and top_right
             left_side = bottom_left and top_left
 
-            # all_side = top_side and bottom_side and right_side and left_side
-
-            # if all_side:
-            #     self.vel[0] *= -1
-            #     self.vel[1] *= -1
-            # else:
             if top_side and not bottom_side:
-                self.pos[1] = wall.bottom + thick
+                self.pos[1] = wall.bottom + thick + 1
                 self.vel[1] = 0
             if bottom_side and not top_side:
-                self.pos[1] = wall.top - thick
+                self.pos[1] = wall.top - thick - 1
                 self.vel[1] = 0
             if right_side and not left_side:
-                self.pos[0] = wall.left - thick
+                self.pos[0] = wall.left - thick - 1
                 self.vel[0] = 0
             if left_side and not right_side:
-                self.pos[0] = wall.right + thick
+                self.pos[0] = wall.right + thick + 1
                 self.vel[0] = 0
 
             self.collision_box = pg.Rect(self.pos[0] - self.thiccness / 2, self.pos[1] - self.thiccness / 2,
@@ -6408,6 +6327,12 @@ def collision_check_no_physics(collision_box, walls):
             return True
     return False
 
+
+def collision_check_point(point, walls):
+    for wall in walls:
+        if wall.collidepoint(point):
+            return True
+    return False
 
 # |Entities shared functions|-------------------------------------------------------------------------------------------
 # If players, enemies and bosses do the same thing in the code, I'll put the code here to make changes easier
@@ -6639,10 +6564,6 @@ def movement_player(self, entities):
     self.walking = False
 
     max_vel = self.vel_max
-    # vel_max = self.vel_max
-    sound_rate = 20
-    sound_volume = 1
-    # Increase speed if the player is running
 
     # Handle double speed and slowness status
     if self.status["Slowness"]:
@@ -6651,7 +6572,6 @@ def movement_player(self, entities):
         max_vel *= 2
 
     # Checks for which direction the player must move
-    # Rework it so that you are not faster when walking in diagonal, this should be fixed now
     vel_limit_x, vel_limit_y = not abs(self.vel[0]) > max_vel, not abs(self.vel[1]) > max_vel
     allow_correction = False
     dash_vel = [0, 0]
@@ -6685,10 +6605,6 @@ def movement_player(self, entities):
         # This makes entities use their walking animation during cutscenes
         self.walking = True
 
-    # Play sound for when the player walks
-    if not self.standing_still and self.time % sound_rate == 0:
-        play_sound(f"Curtis Walk {random.randint(1, 2)}", "SFX", modified_volume=sound_volume)
-
     # Dash mechanic
     if self.dash_cooldown <= 0 and not self.standing_still and self.input["Dash"]:
         # Handle dash here
@@ -6708,7 +6624,129 @@ def movement_player(self, entities):
         if self.status["No damage"] < self.dash_iframes:
             self.status["No damage"] += self.dash_iframes
     self.dash_cooldown -= 1
+    self.free_var.update({"BS COMS": []})
+
     #
+
+
+def movement_player_advanced(self, entities, level):
+    # Sprint    Make the player accelerate faster. Prevent stamina from regenerating
+    # Dash      Consumes a portion of the stamina bar. Bring player to full speed
+    # Roll      Uses speed to
+
+    pass
+
+def movement_player_vertical(self, entities, level):
+    # Eventually I need to add alternatives to sliding
+    # Get the base movement speed
+    speed = self.speed
+    self.running = False
+    self.walking = False
+
+    max_vel = self.vel_max
+
+    # Handle double speed and slowness status
+    if self.status["Slowness"]:
+        max_vel *= 0.5
+    if self.status["Double speed"]:
+        max_vel *= 2
+
+    # Checks for which direction the player must move
+    vel_limit_x, vel_limit_y = not abs(self.vel[0]) > max_vel, not abs(self.vel[1]) > max_vel
+    allow_correction = False
+    dash_vel = [0, 0]
+    if self.input["Left"] and vel_limit_x:
+        self.vel[0] -= speed
+        dash_vel[0] -= speed
+
+        allow_correction = True
+    if self.input["Right"] and vel_limit_x:
+        self.vel[0] += speed
+        dash_vel[0] += speed
+        allow_correction = True
+
+    # |Jumping mechanics|-----------------------------------------------------------------------------------------------
+    # allow_jump = "Touched Bottom Wall" in self.free_var["BS COMS"] # "Touched Right Wall" "Touched Left Wall"
+    allow_jump = collision_check_point([self.pos[0], self.pos[1] + self.thiccness // 2 + 10], level["map"])
+
+    self.friction = self.free_var["Vertical phys"]["Air friction"]
+    dash_vel_mod = self.free_var["Vertical phys"]["Dash mod"]
+    if allow_jump:
+        self.friction = self.free_var["Vertical phys"]["Ground friction"]
+        self.free_var["Vertical phys"]["Dash count"] = 0
+        dash_vel_mod = 1
+
+    if self.input["Up"]:
+        if allow_jump and not self.free_var["Vertical phys"]["Jumping"]:
+            self.free_var["Vertical phys"]["Time jumping"] = 1
+            self.free_var["Vertical phys"]["Stored speed"] = 1
+            self.free_var["Vertical phys"]["Jumping"] = True
+            # self.vel[1] -= self.free_var["Vertical phys"]["Jump speed"]
+            allow_jump = False
+
+        dash_vel[1] -= speed
+        allow_correction = True
+    # Make the player go up
+    if self.free_var["Vertical phys"]["Jumping"]:
+        if self.free_var["Vertical phys"]["Time jumping"] <= self.free_var["Vertical phys"]["Accel Window"] and self.input["Up"]:
+            self.free_var["Vertical phys"]["Stored speed"] += 1
+            self.vel[1] -= self.free_var["Vertical phys"]["Jump speed"]
+
+        elif self.free_var["Vertical phys"]["Stored speed"] != 0:
+            self.free_var["Vertical phys"]["Stored speed"] -= 1
+            self.vel[1] -= self.free_var["Vertical phys"]["Jump speed"]
+
+    # Jump counter
+    if self.free_var["Vertical phys"]["Time jumping"] > 0:
+        self.free_var["Vertical phys"]["Time jumping"] += 1
+        if allow_jump: # Reset if grounded
+            self.free_var["Vertical phys"]["Jumping"] = False
+            self.free_var["Vertical phys"]["Time jumping"] = 0
+            self.free_var["Vertical phys"]["Stored speed"] = 0
+
+    # Quick fall
+    if self.input["Down"]:
+        if not self.free_var["Vertical phys"]["Jumping"]:
+            self.vel[1] += self.free_var["Vertical phys"]["Fall speed"]
+        dash_vel[1] += speed
+        allow_correction = True
+
+    self.walking = allow_correction
+    self.standing_still = False
+    if self.vel == [0, 0]:
+        self.standing_still = True
+    elif self.cutscene_mode:
+        # This makes entities use their walking animation during cutscenes
+        self.walking = True
+
+    # Gravity
+    if not allow_jump and self.free_var["Vertical phys"]["Stored speed"] == 0:
+        self.vel[1] += self.free_var["Vertical phys"]["Fall speed"]
+
+    # Dash mechanic
+    allow_air_dash = self.free_var["Vertical phys"]["Dash count"] <= self.free_var["Vertical phys"]["Dash limit"]
+
+    if self.dash_cooldown <= 0 and not self.standing_still and self.input["Dash"] and allow_air_dash:
+        self.free_var["Vertical phys"]["Dash count"] += 1
+        # Handle dash here
+        play_sound("Player dash", modified_volume=0.25)
+        dash_angle = angle_between(dash_vel, [0, 0])
+        self.dash_cooldown = self.dash_charge_time
+        if self.status["Dash recovery up"] > 0:
+            self.dash_cooldown //= 2
+        self.vel = move_with_vel_angle(self.vel, self.dash_speed/self.free_var["Vertical phys"]["Ground friction"] * dash_vel_mod, dash_angle)
+        for x in range(4):
+            angle = dash_angle - 15 - 3.25 * 2 + x * 7.5 * 2
+            entities["particles"].append(
+                Particles.RandomParticle2(
+                move_with_vel_angle([self.pos[0], self.pos[1]], -4, angle),
+                    WHITE, 1.5 + random.uniform(0, 2), 24, angle))
+
+        if self.status["No damage"] < self.dash_iframes:
+            self.status["No damage"] += self.dash_iframes
+    self.dash_cooldown -= 1
+
+    self.free_var.update({"BS COMS": []})
 
 
 def movement_entity(self):
@@ -6985,26 +7023,6 @@ def write_time(time):
 
 @functools.lru_cache(typed=False)
 def write_textline(line_id, send_back=False, change_lang=False):
-    # Line id
-    #   context_level_name
-    #   level   :
-    #       HU  Hub
-    #       M?  mission ?
-    #       ME  menu
-    #       AR  arena
-    #       FI  fishing
-    #   context :
-    #       RT  radio transmission
-    #       CS  Cutscene
-    #       ME  Menu
-    #       DI  Dialogue
-    #       TP  Pause menu tip
-    #       TL  Mission Title
-    #       UI  User interface
-    #   name    :
-    #       anything that make sense, number them
-    # UI elements have to load it on each frame
-    # If it comes from a game event it only loads when it was made
     try:
         lang = change_lang
         if type(lang) != int:
@@ -7113,7 +7131,7 @@ def create_sotg(win):
     win.blit(temp_ui_font.render("Last Major Update", True, WHITE), (6 * mod, 20 * mod + 4))
     win.blit(temp_ui_font.render("", True, WHITE), (6 * mod, 30 * mod + 4))
 
-    pg.display.update()
+    pg.display.flip()
     pg.image.save(win, f"!Dev stuff/{text}.png")
     win = pg.display.set_mode((win_width, win_height), pg.RESIZABLE)
 
@@ -7364,7 +7382,7 @@ def find_rects_giga_chad(map_geometry, width, height, animate=False):
             for colour, wall in enumerate(output):
                 pg.draw.rect(screen, (128, (colour * 25) % 255, (colour * 50) % 255),
                              [wall[0] * 2, wall[1] * 2, wall[2] * 2, wall[3] * 2])
-            pg.display.update()
+            pg.display.flip()
             clock.tick(90)
 
     # Check through all the squares
@@ -7407,7 +7425,7 @@ def find_rects_giga_chad(map_geometry, width, height, animate=False):
                 for colour, wall in enumerate(output):
                     pg.draw.rect(screen, (128, (colour * 25) % 255, (colour * 50) % 255),
                                  [wall[0] * 2, wall[1] * 2, wall[2] * 2, wall[3] * 2])
-                pg.display.update()
+                pg.display.flip()
                 clock.tick(90)
 
         # Remove overlapping rects
@@ -7674,7 +7692,7 @@ def map_generator(current_mission, testing=False, defense_mode=False, level_obje
                 testing[0].blit(
                     pg.transform.scale_by(map_sprite, 4),
                     (0, 0))
-                pg.display.update()
+                pg.display.flip()
                 testing[1].tick(30)
             try:
                 rows.append(valid_segments[random.randint(0, len(valid_segments) - 1)])
@@ -7778,7 +7796,7 @@ def map_generator(current_mission, testing=False, defense_mode=False, level_obje
             # Black     (0, 0, 0)           Ground
             # Magenta   (255, 0, 255)       Ground, Spawn Point
             # Yellow    (255, 255, 0)       Ground, Objective Zone
-            pg.display.update()
+            pg.display.flip()
             testing[1].tick(30)
 
     # Make final sprite

@@ -1798,6 +1798,15 @@ def rain_fall(entities, pos, radius, colour=WATER_NORMAL):
             entities["particles"].append(RainParticle([true_pos[0], true_pos[1] - 300], colour=colour))
 
 
+def snow_fall(entities, pos, radius, colour=WATER_NORMAL):
+    if len(entities["particles"]) <= 5000:
+        for x in range(random.randint(0, 1)):
+            true_pos = random_point_in_circle(pos, radius)
+
+            # Need to make a snow particle
+            entities["particles"].append(RainParticle([true_pos[0], true_pos[1] - 300], colour=colour))
+
+
 def random_particle_2_circle(entities, center, speed, duration, number_of_particle, colour=WHITE, size=2, angle_mod=0):
     for particles_to_add in range(360 // number_of_particle):
         entities["particles"].append(RandomParticle2([center[0], center[1]], colour, speed, duration,
