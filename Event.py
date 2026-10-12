@@ -139,6 +139,11 @@ def spawn_enemy(entities, enemy: str, pos: [int, int], angle: float, team="Enemi
         Fun.print_to_error_stream(f"Error, I need a string brother")
         Fun.print_to_error_stream(f"You gave me this: {enemy}")
         return
+    if team == "Players":
+        # Make playable versions take priority
+        if enemy in Entity.player_repertory:
+            pass
+            return
     if enemy in Entity.enemy_repertory:
         # entities["entities"].append(Enemies.Enemy(Enemies.enemy_repertory[enemy], pos, angle))
         info = Entity.enemy_repertory[enemy]
@@ -373,9 +378,11 @@ def generic_event_spawn(self, entities, bullets, level, time_passed, info):
     #       bullets
     #                             "spawn": {"Class": "Entity", "Pos": [0, 0, 1, 1], "Angle": 0, "ID": ""},
     if info["Class"] == "Item":
-        Items.spawn_item(entities, info["ID"], info["Pos"])
+        for x in range(int(info["Number of copies"])):
+            Items.spawn_item(entities, info["ID"], info["Pos"].copy())
     if info["Class"] == "Entity":
-        spawn_enemy(entities, info["ID"], info["Pos"], float(info["Angle"]), team=info["Team"])
+        for x in range(int(info["Number of copies"])):
+            spawn_enemy(entities, info["ID"], info["Pos"].copy(), float(info["Angle"]), team=info["Team"])
 
 
 def generic_event_despawn(self, entities, bullets, level, time_passed, info):

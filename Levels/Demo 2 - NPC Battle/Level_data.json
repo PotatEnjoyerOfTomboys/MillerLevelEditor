@@ -1,0 +1,440 @@
+{
+      "name": "Demo 2 - NPC Battle",
+      "events": {
+            "Spawn Pirates": [
+                  "Spawn Pirates",
+                  {
+                        "rects": [],
+                        "Conditions": "trigger_check_constant"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": [
+                              {
+                                    "Name": "Shotgunner",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          25,
+                                          33,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": -140.0,
+                                    "ID": "Pirate Shotgunner",
+                                    "Team": "Pirates",
+                                    "Number of copies": 6.0
+                              },
+                              {
+                                    "Name": "Grunt",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          24,
+                                          31,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": -140.0,
+                                    "ID": "Pirate Grunt",
+                                    "Team": "Pirates",
+                                    "Number of copies": 6.0
+                              },
+                              {
+                                    "Name": "Sniper",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          22,
+                                          30,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": -140.0,
+                                    "ID": "Pirate Sniper",
+                                    "Team": "Pirates",
+                                    "Number of copies": 6.0
+                              },
+                              {
+                                    "Name": "Sword",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          33,
+                                          34,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": -160.0,
+                                    "ID": "Pirate Swordsman",
+                                    "Team": "Pirates",
+                                    "Number of copies": 6.0
+                              },
+                              {
+                                    "Name": "Axe",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          34,
+                                          33,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": -160.0,
+                                    "ID": "Pirate Axeman",
+                                    "Team": "Pirates",
+                                    "Number of copies": 6.0
+                              },
+                              {
+                                    "Name": "Flamer",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          31,
+                                          32,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Pirate Flamer",
+                                    "Team": "Pirates",
+                                    "Number of copies": 6.0
+                              },
+                              {
+                                    "Name": "Demolisher",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          29,
+                                          30,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": -90.0,
+                                    "ID": "Pirate Demolisher",
+                                    "Team": "Pirates",
+                                    "Number of copies": 6.0
+                              },
+                              {
+                                    "Name": "Railgun",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          26,
+                                          31,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": -120.0,
+                                    "ID": "Pirate Railgunner",
+                                    "Team": "Pirates",
+                                    "Number of copies": 6.0
+                              },
+                              {
+                                    "Name": "Blunderbuss",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          27,
+                                          32,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Pirate Blunderbusser",
+                                    "Team": "Pirates",
+                                    "Number of copies": 6.0
+                              },
+                              {
+                                    "Name": "Buff",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          27,
+                                          30,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Pirate Buffer 1",
+                                    "Team": "Pirates",
+                                    "Number of copies": 6.0
+                              }
+                        ]
+                  }
+            ],
+            "Spawn Nest": [
+                  "Spawn Nest",
+                  {
+                        "rects": [],
+                        "Conditions": "trigger_check_constant"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": []
+                  }
+            ],
+            "Spawn CommieBots": [
+                  "Spawn CommieBots",
+                  {
+                        "rects": [],
+                        "Conditions": "trigger_check_constant"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": [
+                              {
+                                    "Name": "Sickle",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          47,
+                                          41,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 40.0,
+                                    "ID": "CommieBot.Sickle",
+                                    "Team": "Commie",
+                                    "Number of copies": 8.0
+                              },
+                              {
+                                    "Name": "Hammer",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          48,
+                                          41,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 80.0,
+                                    "ID": "CommieBot.Hammer",
+                                    "Team": "Commie",
+                                    "Number of copies": 8.0
+                              },
+                              {
+                                    "Name": "Rifle",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          47,
+                                          41,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 80.0,
+                                    "ID": "CommieBot.Rifle",
+                                    "Team": "Commie",
+                                    "Number of copies": 8.0
+                              },
+                              {
+                                    "Name": "Kamikaze",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          47,
+                                          41,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 90.0,
+                                    "ID": "CommieBot.Kamikaze",
+                                    "Team": "Commie",
+                                    "Number of copies": 8.0
+                              },
+                              {
+                                    "Name": "Molotov",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          44,
+                                          39,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 85.0,
+                                    "ID": "CommieBot.Molotov",
+                                    "Team": "Commie",
+                                    "Number of copies": 8.0
+                              }
+                        ]
+                  }
+            ],
+            "Spawn Gang": [
+                  "Spawn Gang",
+                  {
+                        "rects": [],
+                        "Conditions": "trigger_check_constant"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": [
+                              {
+                                    "Name": "Shotgunner",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          53,
+                                          32,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": -30.0,
+                                    "ID": "Gang Shotgunner",
+                                    "Team": "Gang",
+                                    "Number of copies": 8.0
+                              },
+                              {
+                                    "Name": "Grunt",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          52,
+                                          31,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": -10.0,
+                                    "ID": "Gang Grunt",
+                                    "Team": "Gang",
+                                    "Number of copies": 8.0
+                              },
+                              {
+                                    "Name": "Sniper",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          53,
+                                          30,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0.0,
+                                    "ID": "Gang Sniper",
+                                    "Team": "Gang",
+                                    "Number of copies": 8.0
+                              },
+                              {
+                                    "Name": "Melle",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          50,
+                                          34,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": -90.0,
+                                    "ID": "Gang Pipe",
+                                    "Team": "Enemies",
+                                    "Number of copies": 8.0
+                              }
+                        ]
+                  }
+            ],
+            "Fac 1": [
+                  "Fac 1",
+                  {
+                        "rects": [],
+                        "Conditions": "trigger_check_constant"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": []
+                  }
+            ],
+            "Fac 2": [
+                  "Fac 2",
+                  {
+                        "rects": [],
+                        "Conditions": "trigger_check_constant"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": []
+                  }
+            ],
+            "Fac 3": [
+                  "Fac 3",
+                  {
+                        "rects": [],
+                        "Conditions": "trigger_check_constant"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": []
+                  }
+            ],
+            "Anomalies": [
+                  "Anomalies",
+                  {
+                        "rects": [],
+                        "Conditions": "trigger_check_constant"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": []
+                  }
+            ],
+            "End": [
+                  "End",
+                  {
+                        "rects": [],
+                        "Conditions": "trigger_check_zero_enemies"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": [
+                              {
+                                    "Name": "End",
+                                    "Type": "level end",
+                                    "End level state": "win"
+                              }
+                        ]
+                  }
+            ]
+      },
+      "free var": {},
+      "Characters": [
+            "Curtis",
+            "Lawrence",
+            "Mark",
+            "Vivianne",
+            "Lord",
+            "Emperor",
+            "Wizard",
+            "Sovereign",
+            "Duke",
+            "Jester",
+            "Condor",
+            "Spectator"
+      ]
+}

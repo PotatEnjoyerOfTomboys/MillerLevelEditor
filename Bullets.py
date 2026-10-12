@@ -2065,6 +2065,67 @@ class GrenadeType7(BasicBullet):
                             180 - self.angle + self.duration * self.speed)
 
 
+class GrenadeType8(BasicBullet):
+    # Gas
+    def __init__(self, pos, angle, info, owner):
+        BasicBullet.__init__(self, pos, angle, info, owner)
+        self.wall_physics = base_grenade_wall_hit
+
+        self.fire = False
+        self.explosion_primer = True
+        self.explosion = False
+        self.laser = False
+        self.laser_based = False
+        self.melee = False
+        # Type 1 explodes on contact or after a delay
+
+        self.secondary_explosion = info[4]["Incendiary"]
+        if "Damage type" in info[4]:
+            self.damage_type = info[4]["Damage type"]
+        else:
+            self.damage_type = "Fire"
+
+    def act(self, entities, level):
+        if self.duration > 0:
+            base_grenade_act(self, entities)
+        if self.duration == 0:
+            # Explode here
+            Fun.play_sound("Grenade 2", "SFX")
+            for x in range(self.secondary_explosion["Amount of Bullets"]):
+                angle = 360 * x / self.secondary_explosion["Amount of Bullets"]
+
+                # {"Duration": 8, "Growth": 5, "Damage mod": 5}
+                #         if "Secondary explosion" in info[4]:
+                #             self.secondary_explosion = info[4]["Secondary explosion"]
+                #
+                #         self.slowdown_rate = 0.05
+                #         if "Slowdown rate" in info[4]:
+                #             self.slowdown_rate = info[4]["Slowdown rate"]
+                spawn_bullet(
+                    self.owner, entities,
+                    Gas,
+                    Fun.move_with_vel_angle(self.pos, self.secondary_explosion["Speed"] * 2, angle),
+                    self.angle + random.uniform(-33, 33),
+                    [2,
+                     300,
+                     32,
+                     1,
+                     {}])
+
+
+
+    def draw(self, win, scrolling):
+        if self.duration > 0:
+            pg.draw.circle(win, self.colour, [self.pos[0] + scrolling[0],
+                                              self.pos[1] + scrolling[1]], self.radius)
+            Fun.blitRotate2(win, grenade_2,
+                            [self.pos[0] - grenade_2.get_width() // 2 + scrolling[0],
+                             self.pos[1] - grenade_2.get_height() // 2 + scrolling[1]],
+                            180 - self.angle + self.duration * self.speed)
+
+
+
+
 class C4(BasicBullet):
     def __init__(self, pos, angle, info, owner):
         BasicBullet.__init__(self, pos, angle, info, owner)

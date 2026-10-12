@@ -19,8 +19,8 @@ from Event import MissionEvent, loss_of_apc, trigger_constant
 
 
 class Entity(Fun.Adam):
-    __slots__=['z', 'agro', 'agro_decrease_rate', 'ai_state', 'aim_angle', 'angle', 'animation_counter', 'faction', 'ai_type','is_target', 'armour', 'armour_break', 'bullets_shot', 'collision_box', 'control', 'controller_angle', 'controller_control', 'crit', 'cutscene_mode', 'damage_taken', 'dash_allowed', 'dash_charge_time', 'dash_cooldown', 'dash_iframes', 'dash_speed', 'did_agro_raise', 'direction_angle', 'draw_aim_line', 'draw_angle', 'draw_rotated_dist', 'draw_targeting_range', 'driving', 'force_draw', 'free_var', 'friction', 'func_act', 'func_draw', 'func_input', 'health', 'input', 'input_mode', 'is_ally', 'is_boss', 'is_player', 'is_targeted', 'is_targeting', 'max_armour', 'max_health', 'mouse_control', 'mouse_pos', 'name', 'no_shoot_state', 'og_info', 'on_death', 'order_builder', 'pathfinding_old_positions', 'pos', 'reloading', 'resistances', 'running', 'shooting', 'shot_allowed', 'skills', 'sound_mod', 'speed', 'sprites', 'standing_still', 'status', 'stealth_counter', 'stealth_mod', 'target', 'targeting_angle', 'targeting_range', 'team', 'thiccness', 'time', 'upgrades', 'vel', 'vel_max', 'walking', 'wall_hack', 'weapon', 'weapon_draw_dist', 'owner', 'sprite_height']
-    def __init__(self, info, team="Players", pos=[0, 0], start_angle=0):
+    __slots__=['z', 'agro', 'agro_decrease_rate', 'ai_state', 'ai_weapon_range_mod', 'aim_angle', 'angle', 'animation_counter', 'faction', 'ai_type','is_target', 'armour', 'armour_break', 'bullets_shot', 'collision_box', 'control', 'controller_angle', 'controller_control', 'crit', 'cutscene_mode', 'damage_taken', 'dash_allowed', 'dash_charge_time', 'dash_cooldown', 'dash_iframes', 'dash_speed', 'did_agro_raise', 'direction_angle', 'draw_aim_line', 'draw_angle', 'draw_rotated_dist', 'draw_targeting_range', 'driving', 'force_draw', 'free_var', 'friction', 'func_act', 'func_draw', 'func_input', 'health', 'input', 'input_mode', 'is_ally', 'is_boss', 'is_player', 'is_targeted', 'is_targeting', 'max_armour', 'max_health', 'mouse_control', 'mouse_pos', 'name', 'no_shoot_state', 'og_info', 'on_death', 'order_builder', 'pathfinding_old_positions', 'pos', 'reloading', 'resistances', 'running', 'shooting', 'shot_allowed', 'skills', 'sound_mod', 'speed', 'sprites', 'standing_still', 'status', 'stealth_counter', 'stealth_mod', 'target', 'targeting_angle', 'targeting_range', 'team', 'thiccness', 'time', 'upgrades', 'vel', 'vel_max', 'walking', 'wall_hack', 'weapon', 'weapon_draw_dist', 'owner', 'sprite_height']
+    def __init__(self, info, team="Players", pos=[0, 0], start_angle=0, check_halloween=True):
         Fun.Adam.__init__(self)
         info = info.copy()
         self.og_info = info.copy()
@@ -37,6 +37,9 @@ class Entity(Fun.Adam):
         self.faction = "Factionless"
         if 'faction' in info:
             self.faction = info["faction"]
+        self.ai_weapon_range_mod = 1
+        if 'weapon range mod' in info:
+            self.ai_weapon_range_mod = info["weapon range mod"]
 
         # |Health and armour|-------------------------------------------------------------------------------------------
         self.max_health = info["health"]
@@ -52,10 +55,12 @@ class Entity(Fun.Adam):
         if "sprites" in info:
             self.sprites = info["sprites"]
         if type(self.sprites) == str:
-            if Fun.SPOOKY_DAY and self.name in player_repertory:
-                self.sprites = self.sprites.split(".")[0]
-                self.sprites += " - Halloween.png"
+            if check_halloween:
+                if Fun.SPOOKY_DAY and self.name in player_repertory:
+                    self.sprites = self.sprites.split(".")[0]
+                    self.sprites += " - Halloween.png"
             sprite = Fun.get_image(self.sprites)
+            print()
             self.sprite_height = 32
             if "Sprite Height" in info:
                 self.sprite_height = info["Sprite Height"]
@@ -73,7 +78,7 @@ class Entity(Fun.Adam):
                                   "Walk": 0}
         self.force_draw = False
         # These are not handled by the player
-        self.weapon_draw_dist, self.draw_angle, self.draw_rotated_dist = 0, 0, 0
+        self.weapon_draw_dist, self.draw_angle, self.draw_rotated_dist, self.weapon_draw_angle = 0, 0, 0, 0
         self.draw_targeting_range = 0
 
         # |Position|----------------------------------------------------------------------------------------------------
@@ -472,7 +477,7 @@ def draw_weapon(self, WIN, scrolling):
     origin = [0, self.weapon.sprite.get_height() // 2]
 
     Fun.blitRotate(WIN, pg.transform.flip(self.weapon.sprite, True, -90 < self.aim_angle < 90),
-                   drawing_pos, origin, 180 - self.aim_angle + angle_to_add + self.draw_angle)
+                   drawing_pos, origin, 180 - self.aim_angle + angle_to_add + self.draw_angle + self.weapon_draw_angle)
 
 
 def thr_1_on_death(self, entities, level):
@@ -816,6 +821,29 @@ def enemy_draw_bulwark(self, WIN, scrolling):
         # print(player_direction)
         frame_to_get = self.animation_counter[action_type] // 8 % 4
     Fun.draw_spritestack(WIN, Fun.SPRITE_BULWARKS[frame_to_get], [self.pos[0] + scrolling[0], self.pos[1] + scrolling[1]+10],
+                         self.aim_angle + 90, height_diff=0.75)
+
+    # Draw the gun
+    angle_to_add = 0
+    if self.reloading:
+        angle_to_add = (360 / self.weapon.reload_time) * self.no_shoot_state
+
+    Fun.blitRotate(WIN, pg.transform.flip(self.weapon.sprite, True, -90 < self.aim_angle < 90),
+                   Fun.move_with_vel_angle([self.pos[0] + scrolling[0], self.pos[1] + scrolling[1]], 4,
+                                           self.aim_angle),
+                   [0, 0], 180 - self.aim_angle + angle_to_add)
+    #
+
+
+def enemy_draw_gang_moped(self, WIN, scrolling):
+    # That one has animations
+    if self.status["Stealth"] > 0:
+        return
+    # Draw the enemy
+
+    WIN.blit(Fun.ENTITY_SHADOW, (self.pos[0]-16 + scrolling[0], self.pos[1] + 11 + scrolling[1]), special_flags=pg.BLEND_RGBA_SUB)
+    frame_to_get = 0
+    Fun.draw_spritestack(WIN, Fun.SPRITE_GANG_MOPED, [self.pos[0] + scrolling[0], self.pos[1] + scrolling[1]+10],
                          self.aim_angle + 90, height_diff=0.75)
 
     # Draw the gun
@@ -3048,7 +3076,7 @@ ENEMY_NO_OWNER = Entity({"name": "Nest Trooper",
          "sprites": "Sprites/Enemies/Nest Commander.png",
          "on death": "none",
          "free var": {}
-         }, team="Enemies", pos=[0, 0], start_angle=0)
+         }, team="Enemies", pos=[0, 0], start_angle=0, check_halloween=False)
 # |Repertories|---------------------------------------------------------------------------------------------------------
 # Entity stats
 H_LO, H_LM, H_MO, H_MH, H_HO = 60, 90, 130, 170, 200        # Max Health
@@ -3057,7 +3085,7 @@ V_LO, V_LM, V_MO, V_MH, V_HO = 2, 3, 4, 5, 5.75             # Max Speed
 R_LO, R_LM, R_MO, R_MH, R_HO = 256, 384, 512, 640, 768      # Vision range
 D_LO, D_LM, D_MO, D_MH, D_HO = 15, 30, 45, 60, 75           # Targeting angle
 S_LO, S_LM, S_MO, S_MH, S_HO = 1, 0.85, 0.65, 0.55, 0.45    # Stealth mod
-C_LO, C_LM, C_MO, C_MH, C_HO = 1, 2, 4, 6, 10               # Stealth Counter
+C_LO , C_LM, C_MO, C_MH, C_HO = 1, 2, 4, 6, 10               # Stealth Counter
 T_LO, T_LM, T_MO, T_MH, T_HO = 8, 12, 16, 24, 32            # Size, thickness
 
 # Dash speed
@@ -3082,6 +3110,9 @@ CU_RESIT = {"Physical": 0.75, "Fire": 0.85, "Explosion": 0.9,  "Energy": 0.9,   
 LA_RESIT = {"Physical": 0.8,  "Fire": 0.8,  "Explosion": 0.9,  "Energy": 0.9,     "Melee": 1, "Healing": -1}   # M
 MA_RESIT = {"Physical": 0.9,  "Fire": 0.8,  "Explosion": 0.9,  "Energy": 0.8,     "Melee": 1, "Healing": -1}   # M
 VI_RESIT = {"Physical": 0.9,  "Fire": 0.9,  "Explosion": 0.8,  "Energy": 0.8,     "Melee": 1, "Healing": -1}   # M
+
+
+IN_RESIT = {"Physical": 0,    "Fire": 0,    "Explosion": 0,  "Energy": 0,     "Melee": 0, "Healing": -1}   # M
 
 VIVIANNE_SUMMON_LIVE_TIME = 800
 # HEALING_PRIORITY_LIST = {"Wizard": -1, "Emperor": 0, "Lord": 1, "Duke": 2, "Condor": 3, "Jester": 4, "Sovereign": 5}
@@ -3390,6 +3421,27 @@ player_repertory = {
         }
     },
 
+
+    # Nest Agent
+    "Agent Cardinal": {
+        "name": "Agent Cardinal",
+        "health": H_MH, "armour": A_MO, "damage resistances": LO_RESIT,
+        "sprites": "Sprites/Player/Nest Agent.png",
+
+        "thickness": T_MH, "vel max": V_MO, "speed": 2.2, "friction": 1.5,
+        "dash": {"speed": DS_HO, "i-frames": 12, "charge": 35},
+        # Weapons
+        "weapon": "Nest Battle Rifle", "skills": ["RPG!", "Beast Mode"],
+        # AI
+        "func input": "test_ally_input", "func act": "nest_agent_act", "func draw": player_draw, "on death": none,
+        "targeting range": R_MH, "targeting angle": D_LM, "wall hack": False,
+        "driving": DRIVE_MO,
+        "free var": {
+            "Ally waypoint": [0, 0],
+            "Weapon sprite": Fun.get_image("Sprites/Weapon/NEST/Nest Battle Rifle.png"),
+            "RPG sprite": Fun.get_image("Sprites/Weapon/NEST/RPG.png")
+        }
+    },
     "Sand Buggy": {
         "name": "Sand Buggy",
         "health": H_HO * 2, "armour": A_HO * 2, "damage resistances": FO_RESIT,
@@ -3596,7 +3648,31 @@ player_repertory = {
         "targeting angle": 33,
         "wall hack": False,
         "free var": {"Life Limit": VIVIANNE_SUMMON_LIVE_TIME, "NO DEATH MESSAGE": True}
-    }
+    },
+    "Spectator": {
+        "name": "Spectator",
+        "wall hack": False,
+        "targeting angle": 180, "targeting range": 512 * 2, "stealth mod": 0.1, "stealth counter": 100,
+        "health": 1,
+        "armour": 1,
+        "damage resistances": IN_RESIT,
+        "weapon": "Standard Shotgun",
+
+        "thickness": 16,
+        "vel max": 6.25,
+        "speed": 1.17,
+        "friction": 1.15,
+        "dash": {"speed": DS_HO, "i-frames": 24, "charge": 25},
+
+        "sprites": "Sprites/Player/Curtis.png",
+
+        "skills": [],
+        "func input": "test_ally_input",
+        "func act": "player_act",
+        "func draw": none,
+        "on death": none,
+        "free var": {"Ally waypoint": [0, 0]}
+    },
 }
 
 # Resistances   set to 1 mean no resistance
@@ -4256,7 +4332,7 @@ enemy_repertory = {
     # Rigel
     "Rigel":
         {"name": "Rigel",
-         "faction": "FAC-3",
+         "faction": "Anomaly",
          "type": "Elite",
          "targeting range": R_MO, "targeting angle": D_HO, "stealth mod": S_LO, "stealth counter": C_MO,
          "wall hack": False, "health": H_HO * 12, "armour": 0, "damage resistances": F3_RESIT_H,
@@ -4296,7 +4372,7 @@ enemy_repertory = {
          }
          },
     # Curtis
-    "Curtis": {
+    "Curtis (Boss)": {
         "name": "Curtis", "faction": "Zoar Colonists",
         # "health": 200*4, "armour": 50, "damage resistances": CU_RESIT,
         "health": 1, "armour": 1, "damage resistances": CU_RESIT,
@@ -4326,7 +4402,7 @@ enemy_repertory = {
     },
 
     # THR-1 enemy version
-    "Lord": {
+    "Lord (Boss)": {
         "name": "Lord", "faction": "THR-1",
         "health": H_MH, "armour": A_MO, "damage resistances": LO_RESIT,
         "sprites": "Sprites/Player/THR-1/Lord.png",
@@ -4342,7 +4418,7 @@ enemy_repertory = {
         "free var": {"Ally waypoint": [0, 0], "IS BOSS": True}
     },
     # Emperor	    M       L/M     M       M/H     H       M       M/H     M       M       M       H       H       Jack of all trades
-    "Emperor": {
+    "Emperor (Boss)": {
         "name": "Emperor", "faction": "THR-1",
         "health": H_MO, "armour": A_LM, "damage resistances": EM_RESIT, "sprites": "Sprites/Player/THR-1/Emperor.png",
         "thickness": T_MO,
@@ -4360,7 +4436,7 @@ enemy_repertory = {
         "free var": {"Ally waypoint": [0, 0], "Startup lag": 0, "Startup time": 60, "Kicked": 0, "Startup lag kick": 0, "kick cooldown": 120}
     },
     # Wizard        L/M     M       M/H     M       M       L/M     M       M       H       M       H       M       Area denial
-    "Wizard": {
+    "Wizard (Boss)": {
         "name": "Wizard", "faction": "THR-1",
         "health": H_LM, "armour": A_MO, "damage resistances": WI_RESIT, "sprites": "Sprites/Player/THR-1/Wizard.png",
         "thickness": T_MO,
@@ -4376,7 +4452,7 @@ enemy_repertory = {
         "free var": {"Ally waypoint": [0, 0]}
     },
     # Sovreign       L/M     L/M     L       M/H     H++     M/H     H       L       L       L/M     L       M       Sniper recon
-    "Sovereign": {
+    "Sovereign (Boss)": {
         "name": "Sovereign", "faction": "THR-1",
         "health": H_LM, "armour": A_LM, "damage resistances": SO_RESIT, "sprites": "Sprites/Player/THR-1/Sovereign.png",
         "thickness": T_LO,
@@ -4394,7 +4470,7 @@ enemy_repertory = {
         "free var": {"Ally waypoint": ENEMY_NO_OWNER, "Detect Targets Duration": 3 * 60, "Exposed blue ball timer": 0, "Startup lag": 0, "Startup time": 60}
     },
     # Duke	        M       L/M     M       H       M       H       M       L/M     L/M     H       H       H	    Plays with agro
-    "Duke": {
+    "Duke (Boss)": {
         "name": "Duke", "faction": "THR-1",
         "health": H_MO, "armour": A_LM, "damage resistances": DU_RESIT,
         "sprites": "Sprites/Player/THR-1/Duke.png",
@@ -4413,7 +4489,7 @@ enemy_repertory = {
         "free var": {"Ally waypoint": ENEMY_NO_OWNER}
     },
     # Jester	    L--     H++     H       L       L/M     L/M     H++     M/H     L/M     L--     H++     L       Primary support. Helps them not dying
-    "Jester": {
+    "Jester (Boss)": {
         "name": "Jester", "faction": "THR-1",
         "health": int(H_LO * 0.5), "armour": A_MH * 2, "damage resistances": JE_RESIT,
         "sprites": "Sprites/Player/THR-1/Jester.png",
@@ -4433,7 +4509,7 @@ enemy_repertory = {
         "free var": {"Ally waypoint": [0, 0], "Startup lag": 0}
     },
     # Condor        H       H       M/H     L/M     M       L       L/M     M/H     M/H     M       L       L       Tank and cause debuffs
-    "Condor": {
+    "Condor (Boss)": {
         "name": "Condor", "faction": "THR-1",
         "health": H_HO, "armour": A_HO, "damage resistances": CO_RESIT,
         "sprites": "Sprites/Player/THR-1/Condor.png",
@@ -4452,34 +4528,6 @@ enemy_repertory = {
         "wall hack": True,
         "free var": {"Ally waypoint": ENEMY_NO_OWNER}
     },
-    "VIP":
-        {"name": "Nest Trooper",
-         "faction": "FAC-1",
-         "type": "VIP",
-
-         "targeting range": 450,
-         "targeting angle": 25,
-         "wall hack": False,
-
-         "health": 200,
-         "armour": 100,
-         "damage resistances": NO_RESIT_L,
-
-         "thickness": 16,
-         "vel max": 3.25,
-         "speed": 1.5,
-         "friction": 1.5,
-         "weapon": "Nest Heavy Machine Gun",
-
-         "func input": "enemy_input_nest_trooper",
-         "func act": "enemy_act_type_1",
-         "func draw": "enemy_draw_basic",
-         "sprites": "Sprites/Enemies/Nest Commander.png",
-         "on death": "none",
-         "free var": {
-             "Is VIP": True
-         }
-         },
     # |No Name TSS|-----------------------------------------------------------------------------------------------------
     "Fish": {
         'name': 'Fish',
@@ -4543,8 +4591,8 @@ enemy_repertory = {
         'targeting angle': 15,
         'wall hack': False,
 
-        'health': 45,
-        'armour': 0,
+        'health': H_LM,
+        'armour': A_LO,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 15,
@@ -4569,8 +4617,8 @@ enemy_repertory = {
         'targeting angle': 15,
         'wall hack': False,
 
-        'health': 90,
-        'armour': 20,
+        'health': H_LM,
+        'armour': A_LM,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 15,
@@ -4595,8 +4643,8 @@ enemy_repertory = {
         'targeting angle': 15,
         'wall hack': False,
 
-        'health': 45,
-        'armour': 0,
+        'health': H_LO,
+        'armour': A_LO,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 15,
@@ -4605,6 +4653,7 @@ enemy_repertory = {
         'friction': 1.5,
         'weapon': 'Pirate Semi-auto',
 
+        'weapon range mod': 1,
         'func input': 'enemy_input_grunt_type_1',
         'func act': 'enemy_act_type_1',
         'func draw': 'enemy_draw_basic',
@@ -4620,8 +4669,8 @@ enemy_repertory = {
         'targeting angle': 15,
         'wall hack': False,
 
-        'health': 40,
-        'armour': 0,
+        'health': H_LO,
+        'armour': A_LO,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 15,
@@ -4630,6 +4679,7 @@ enemy_repertory = {
         'friction': 1.25,
         'weapon': 'Pirate Shotgun',
 
+        'weapon range mod': 1.75,
         'func input': 'enemy_input_shotgunner_type_1',
         'func act': 'enemy_act_type_1',
         'func draw': 'enemy_draw_basic',
@@ -4646,8 +4696,8 @@ enemy_repertory = {
         'targeting angle': 15,
         'wall hack': False,
 
-        'health': 40,
-        'armour': 0,
+        'health': H_LO,
+        'armour': A_LO,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 15,
@@ -4671,8 +4721,8 @@ enemy_repertory = {
         'targeting angle': 15,
         'wall hack': False,
 
-        'health': 40,
-        'armour': 0,
+        'health': H_LO,
+        'armour': A_LO,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
         'thickness': 15, 'vel max': 3, 'speed': 1.25, 'friction': 1.25,
         'weapon': 'Pirate Rifle',
@@ -4693,8 +4743,8 @@ enemy_repertory = {
         'targeting angle': 15,
         'wall hack': True,
 
-        'health': 40,
-        'armour': 0,
+        'health': H_MO,
+        'armour': A_LO,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 15,
@@ -4703,7 +4753,7 @@ enemy_repertory = {
         'friction': 1.25,
         'weapon': 'Pirate Railgun',
 
-        'func input': 'enemy_input_sniper_type_2',
+        'func input': 'enemy_input_sniper_type_1',
         'func act': 'enemy_act_type_1',
         'func draw': 'enemy_draw_basic',
         'sprites': 'Sprites/Enemies/Pirate Railgunner.png',
@@ -4719,8 +4769,8 @@ enemy_repertory = {
         'targeting angle': 15,
         'wall hack': False,
 
-        'health': 80,
-        'armour': 0,
+        'health': H_MO,
+        'armour': A_MH,
         'damage resistances': {'Physical': 0.75, 'Fire': 1.5, 'Explosion': 0.125, 'Energy': 1, 'Melee': 1},
 
         'thickness': 15,
@@ -4745,7 +4795,7 @@ enemy_repertory = {
         'targeting angle': 15,
         'wall hack': False,
 
-        'health': 40,
+        'health': H_MH,
         'armour': 0,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
@@ -4755,7 +4805,8 @@ enemy_repertory = {
         'friction': 1.25,
         'weapon': 'Pirate Flame Thrower',
 
-        'func input': 'enemy_input_flamer_type_1',
+        'weapon range mod': 1.75,
+        'func input': 'enemy_input_shotgunner_type_1',
         'func act': 'enemy_act_type_1',
         'func draw': 'enemy_draw_basic',
         'sprites': 'Sprites/Enemies/Pirate Flamer.png',
@@ -4771,8 +4822,8 @@ enemy_repertory = {
         'targeting angle': 15,
         'wall hack': False,
 
-        'health': 50,
-        'armour': 0,
+        'health': H_MH,
+        'armour': A_LO,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 15,
@@ -4797,8 +4848,8 @@ enemy_repertory = {
         'targeting angle': 15,
         'wall hack': False,
 
-        'health': 80,
-        'armour': 0,
+        'health': H_MO,
+        'armour': A_MO,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 15,
@@ -4825,8 +4876,8 @@ enemy_repertory = {
         'targeting angle': 25,
         'wall hack': False,
 
-        'health': 40,
-        'armour': 20,
+        'health': H_LM,
+        'armour': A_LM,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 16,
@@ -4851,8 +4902,8 @@ enemy_repertory = {
         'targeting angle': 25,
         'wall hack': False,
 
-        'health': 40,
-        'armour': 20,
+        'health': H_LM,
+        'armour': A_LM,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 16,
@@ -4877,8 +4928,8 @@ enemy_repertory = {
         'targeting angle': 15,
         'wall hack': False,
 
-        'health': 40,
-        'armour': 10,
+        'health': H_LM,
+        'armour': A_LM,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 16,
@@ -4903,8 +4954,8 @@ enemy_repertory = {
         'targeting angle': 25,
         'wall hack': False,
 
-        'health': 50,
-        'armour': 30,
+        'health': H_LM,
+        'armour': A_MH,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 16,
@@ -4929,8 +4980,8 @@ enemy_repertory = {
         'targeting angle': 25,
         'wall hack': False,
 
-        'health': 60,
-        'armour': 10,
+        'health': H_MO,
+        'armour': A_MO,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 16,
@@ -4955,8 +5006,8 @@ enemy_repertory = {
         'targeting angle': 25,
         'wall hack': False,
 
-        'health': 40,
-        'armour': 20,
+        'health': H_MO,
+        'armour': A_LM,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 16,
@@ -4981,8 +5032,8 @@ enemy_repertory = {
         'targeting angle': 25,
         'wall hack': False,
 
-        'health': 80,
-        'armour': 30,
+        'health': H_MH,
+        'armour': A_MO,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 16,
@@ -5007,8 +5058,8 @@ enemy_repertory = {
         'targeting angle': 15,
         'wall hack': True,
 
-        'health': 40,
-        'armour': 30,
+        'health': H_MO,
+        'armour': A_MO,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 16,
@@ -5033,8 +5084,8 @@ enemy_repertory = {
         'targeting angle': 25,
         'wall hack': False,
 
-        'health': 40,
-        'armour': 30,
+        'health': H_MO,
+        'armour': A_MH,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 16,
@@ -5059,8 +5110,8 @@ enemy_repertory = {
         'targeting angle': 35,
         'wall hack': False,
 
-        'health': 40,
-        'armour': 30,
+        'health': H_MO,
+        'armour': A_MH,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 16,
@@ -5085,7 +5136,7 @@ enemy_repertory = {
         'targeting angle': 40,
         'wall hack': False,
 
-        'health': 35,
+        'health': H_MO,
         'armour': 0,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
@@ -5231,6 +5282,47 @@ enemy_repertory = {
         'on death': 'none',
         'free var': {'Startup lag': 0, 'Startup time': 90},
     },
+    # Gang Heavy    # Uses gun with under barrel
+    "Gang Biker": {
+        'name': 'Gang',
+        'faction': 'Street Gang',
+        'type': 'close range',
+
+        'targeting range': 450,
+        'targeting angle': 15,
+        'wall hack': False,
+
+        'health': H_MO,
+        'armour': A_LO,
+        'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
+
+        'thickness': 15,
+        "vel max": V_HO,
+        "speed": 1.4,
+        "friction": 0.35,
+        'weapon': 'Gang Compact SMG',
+        "driving": DRIVE_HO,
+
+        'func input': 'enemy_input_moped',
+        'func act': 'moped_act',
+        'func draw': 'enemy_draw_gang_moped',
+        'sprites': 'Sprites/Enemies/Gang Grunt.png',
+        "weapon range mod": 1.5,
+        'on death': 'on_death_kamikaze',
+        'free var': {"Move angle": 0, "Target Move angle": 0, "Move vel": 0},
+    },
+
+    # Goon
+    # Grunt
+    # Shotgunner
+    # Sniper
+    # Bruiser
+
+    # Pasta Cook
+    # Pizza Cook
+
+    # *Woman*
+    # Padre
 
     # Anomaly
     "Monolith": {
@@ -5242,8 +5334,8 @@ enemy_repertory = {
         'targeting angle': 3,
         'wall hack': False,
 
-        'health': 90,
-        'armour': 0,
+        'health': H_HO,
+        'armour': A_HO,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 15,
@@ -5268,8 +5360,8 @@ enemy_repertory = {
         'targeting angle': 3,
         'wall hack': True,
 
-        'health': 180,
-        'armour': 0,
+        'health': H_HO,
+        'armour': A_LO,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
         'thickness': 15,
@@ -5294,7 +5386,7 @@ enemy_repertory = {
         'targeting angle': 180,
         'wall hack': True,
 
-        'health': 80,
+        'health': H_LM,
         'armour': 0,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
@@ -5346,7 +5438,7 @@ enemy_repertory = {
         'targeting angle': 360,
         'wall hack': False,
 
-        'health': 90,
+        'health': H_LM,
         'armour': 0,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
@@ -5372,7 +5464,7 @@ enemy_repertory = {
         'targeting angle': 360,
         'wall hack': True,
 
-        'health': 100,
+        'health': H_MH,
         'armour': 0,
         'damage resistances': {'Physical': 1, 'Fire': 1, 'Explosion': 1, 'Energy': 1, 'Melee': 1},
 
@@ -5398,8 +5490,10 @@ enemy_repertory = {
          "targeting range": 350,
          "targeting angle": 15,
          "wall hack": False,
-         "health": 100,
-         "armour": 0,
+
+         "health": H_MO,
+         "armour": A_LO,
+
          "damage resistances": RESISTANCES_MACHINE,
          "thickness": 20,
          "vel max": 1,
@@ -5412,8 +5506,6 @@ enemy_repertory = {
          "sprites": "Sprites/Enemies/Commiebot.Hammer.png",
          "on death": "none",
          "free var": {}},
-    #       .Sickle
-    #           Uses slash weapon. Fast, low health.
     "CommieBot.Sickle":
         {"name": "CommieBot.Sickle",
          "faction": "CommieBot",
@@ -5421,7 +5513,7 @@ enemy_repertory = {
          "targeting range": 350,
          "targeting angle": 15,
          "wall hack": False,
-         "health": 30,
+         "health": H_LO,
          "armour": 0,
          "damage resistances": RESISTANCES_MACHINE,
          "thickness": 15,
@@ -5435,8 +5527,6 @@ enemy_repertory = {
          "sprites": "Sprites/Enemies/Commiebot.Sickle.png",
          "on death": "none",
          "free var": {}},
-    # .Kamikaze
-    #   Explose on death
     "CommieBot.Kamikaze":
         {"name": "CommieBot.Kamikaze",
          "faction": "CommieBot",
@@ -5444,7 +5534,7 @@ enemy_repertory = {
          "targeting range": 350,
          "targeting angle": 15,
          "wall hack": False,
-         "health": 10,
+         "health": H_LO,
          "armour": 0,
          "damage resistances": RESISTANCES_MACHINE,
          "thickness": 15,
@@ -5458,8 +5548,6 @@ enemy_repertory = {
          "sprites": "Sprites/Enemies/Commiebot.Kamikaze.png",
          "on death": "on_death_kamikaze",
          "free var": {}},
-    #       .Rifle
-    #           Uses a Semi-auto. Will always be shooting, even if the player is not in range
     "CommieBot.Rifle":
         {"name": "CommieBot.Rifle",
          "faction": "CommieBot",
@@ -5467,7 +5555,7 @@ enemy_repertory = {
          "targeting range": 550,
          "targeting angle": 15,
          "wall hack": False,
-         "health": 45,
+         "health": H_LM,
          "armour": 0,
          "damage resistances": RESISTANCES_MACHINE,
 
@@ -5492,7 +5580,7 @@ enemy_repertory = {
          "targeting angle": 15,
          "wall hack": False,
 
-         "health": 45,
+         "health": H_LM,
          "armour": 0,
          "damage resistances": RESISTANCES_MACHINE,
 
@@ -5508,6 +5596,7 @@ enemy_repertory = {
          "sprites": "Sprites/Enemies/Commiebot.Molotov.png",
          "on death": "none",
          "free var": {}}
+    # CommieBot.Tank
 }
 
 
@@ -5554,7 +5643,7 @@ def fake_render(boss, WIN, CLOCK):
         bosses_to_draw[-1].angle = random.randint(-135, -45)
     for b in bosses_to_draw:
         b.aim_angle = b.angle + random.randint(-35, 35)
-    bosses_to_draw[-1].free_var["Move angle"] = -50
+    bosses_to_draw[-1].free_var["Move angle"] = -130
     # boss_to_draw.free_var["Move angle"] -= 33
     # boss_to_draw.aim_angle -= 130 -90
     bosses_to_draw[-1].aim_angle = -145
@@ -5580,7 +5669,8 @@ def fake_render(boss, WIN, CLOCK):
         surface_to_draw.fill(Fun.UI_COLOUR_BACKGROUND)
 
         for b in bosses_to_draw:
-            b.draw(surface_to_draw, [630//4, 450//4])
+            # b.draw(surface_to_draw, [630//4, 450//4], )
+            b.draw_actual(surface_to_draw, [630//4, 450//4])
         # boss_to_draw.pos[0] += 1
         # boss_to_draw.pos[1] += 1
         Fun.scale_render(WIN, surface_to_draw, CLOCK)
@@ -5628,8 +5718,6 @@ def fake_render_mech_parts(boss, WIN, CLOCK):
         if not screenshot_taken:
             Fun.screenshot(WIN)
             screenshot_taken = True
-
-
 #
 
 everyone = [

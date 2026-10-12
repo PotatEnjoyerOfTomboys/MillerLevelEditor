@@ -709,7 +709,7 @@ def item_cover_draw(self, WIN, scrolling):
     WIN.blit(Fun.ENTITY_SHADOW, (self.pos[0] - 16 + scrolling[0], self.pos[1] + 1 + scrolling[1]),
              special_flags=pg.BLEND_RGBA_SUB)
     WIN.blit(
-        self.sprites[self.animation_counter],
+        self.sprites[pg.math.clamp(self.animation_counter, 0, len(self.sprites)-1)],
         (self.pos[0] - 8 + scrolling[0],
          self.pos[1] + scrolling[1])
     )

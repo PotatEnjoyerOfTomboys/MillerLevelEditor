@@ -1,0 +1,39 @@
+{
+      "name": "4 guys on mopeds",
+      "events": {
+            "Spawn the guys on mopeds": [
+                  "Spawn the guys on mopeds",
+                  {
+                        "rects": [],
+                        "Conditions": "trigger_check_constant"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": [
+                              {
+                                    "Name": "Mopeds",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          20,
+                                          15,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Gang Biker",
+                                    "Team": "Enemies",
+                                    "Number of copies": 4.0
+                              }
+                        ]
+                  }
+            ]
+      },
+      "free var": {},
+      "Characters": [
+            "Curtis"
+      ]
+}

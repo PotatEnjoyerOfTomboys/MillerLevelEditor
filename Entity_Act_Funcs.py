@@ -5,6 +5,7 @@ import Fun
 import Particles
 import Skills
 import Entity
+import Bullets
 from Entity import dodging, universal_pathfinding, pathfinding, start_up_lag_handler, entity_dodge_bullets
 from Entity_Input_Funcs import APC_MOVE_TO_POINT
 
@@ -302,6 +303,24 @@ def player_act_vertical(self, entities, level):
                 [self.pos[0], self.pos[1]], Fun.GREEN, 2 * random.random(), random.randint(15, 45),
                                                         particles_to_add * number_of_particle,
                 size=Fun.get_random_element_from_list([3, 4, 6])))
+
+
+def nest_agent_act(self, entities, level):
+    player_act(self, entities, level)
+    if self.no_shoot_state == 0:
+        if self.input["Interact"]:
+            Bullets.spawn_bullet(self, entities, Bullets.GrenadeType8, Fun.move_with_vel_angle(self.pos, 16, self.aim_angle), self.aim_angle,
+                                 [7, 50, 4, 30,
+                                  {"Incendiary": {
+                                      "Amount of Bullets": 4,
+                                      "Speed": 2,
+                                      "Duration": 90,
+                                      "Radius": 4,
+                                      "Damage": 5,
+                                      "Fire property": {"Particle allowed": True, "Burn chance": 1,
+                                                        "Burn duration": 30, "Colour": Fun.FIRE,}}},
+                                  {"Secondary explosion": {"Duration": 8, "Growth": 3.5, "Damage mod": 0.5}}])
+            self.no_shoot_state = 25
 
 
 def vivianne_act(self, entities, level):
@@ -831,6 +850,148 @@ def buggy_act(self, entities, level):
                 [self.pos[0], self.pos[1]], Fun.GREEN, 2 * random.random(), random.randint(15, 45),
                                                         particles_to_add * number_of_particle,
                 size=Fun.get_random_element_from_list([3, 4, 6])))
+
+
+def moped_act(self, entities, level):
+    angle = self.free_var["Move angle"] + 226 - 180
+    pos = [self.pos[0], self.pos[1] - 16]
+    pos = Fun.move_with_vel_angle(pos, 22.6274, angle)
+    pos = Fun.move_with_vel_angle(pos, 20, self.aim_angle)
+    # |Movement Input|----------------------------------------------------------------------------------------------
+    self.running = False
+    self.walking = False
+
+    max_vel = self.vel_max
+
+    # Handle double speed and slowness status
+    if self.status["Slowness"]:
+        max_vel *= 0.5
+    if self.status["Double speed"]:
+        max_vel *= 2
+
+    # Checks for which direction the player must move
+    # Rework it so that you are not faster when walking in diagonal, this should be fixed now
+    if self.dash_cooldown <= 0:
+        allow_correction = False
+        speed = 0
+        if self.input["Up"]:
+            speed = 1
+            allow_correction = True
+        if self.input["Down"]:
+            speed = -1
+            allow_correction = True
+
+        mod = 0.7
+        angle_type = "Move angle"
+        self.free_var["Move vel"] = abs(self.vel[0]) + abs(self.vel[1])
+
+        # Fun.move_angle_toward_target_angle(real_angle, target_angle, rate)
+        turn_vel = self.free_var["Move vel"] * 0.8
+        if self.free_var["Move vel"] > 0 and turn_vel < 1:
+            turn_vel = 1
+        if turn_vel > 4:
+            turn_vel = 4
+        if self.input["Left"]:
+            self.free_var["Target Move angle"] -= turn_vel
+        if self.input["Right"]:
+            self.free_var["Target Move angle"] += turn_vel
+        self.free_var["Target Move angle"] = Fun.angle_value_limiter(self.free_var["Target Move angle"])
+        self.free_var["Move angle"] = Fun.move_angle_toward_target_angle(self.free_var["Move angle"],
+                                                                         self.free_var["Target Move angle"],
+                                                                         turn_vel * mod)
+
+        self.vel = Fun.move_with_vel_angle(self.vel, self.speed * speed, self.free_var[angle_type])
+        if not Fun.check_point_in_circle(max_vel, 0, 0, self.vel[0], self.vel[1]) and allow_correction:
+            self.vel = Fun.move_with_vel_angle([0, 0], max_vel * speed, self.free_var[angle_type])
+        self.walking = allow_correction
+    #
+    self.standing_still = False
+    if self.vel == [0, 0]:
+        self.standing_still = True
+    elif self.cutscene_mode:
+        # This makes entities use their walking animation during cutscenes
+        self.walking = True
+
+    # Dash mechanic
+    if self.dash_cooldown <= 0 and not self.standing_still and self.input["Dash"]:
+        # Handle dash here
+        Fun.play_sound("Player dash", modified_volume=0.25)
+        dash_angle = self.free_var["Move angle"]
+        self.dash_cooldown = self.dash_charge_time
+        if self.status["Dash recovery up"] > 0:
+            self.dash_cooldown //= 2
+        self.vel = Fun.move_with_vel_angle(self.vel, self.dash_speed / self.friction * speed, dash_angle)
+        for x in range(4):
+            angle = dash_angle - 15 - 3.25 * 2 + x * 7.5 * 2
+            entities["particles"].append(
+                Particles.RandomParticle2(
+                    Fun.move_with_vel_angle([self.pos[0], self.pos[1]], -4, angle),
+                    Fun.WHITE, 1.5 + random.uniform(0, 2), 24, angle))
+
+        if self.status["No damage"] < self.dash_iframes:
+            self.status["No damage"] += self.dash_iframes
+    self.dash_cooldown -= 1
+
+    # |GunPlay|-----------------------------------------------------------------------------------------------------
+    length = self.weapon.range + 20
+
+    # Draw the lines
+    entities["background particles"].append(
+        Particles.LineParticle(self.pos, Fun.RED, 1, length, self.free_var["Move angle"], 1, 0))
+
+    entities["UI particles"].append(Particles.AimPoint(self.mouse_pos))
+    self.weapon.passive(self, entities, level)
+    if self.no_shoot_state == 0:
+        # Reset variables
+        self.reloading = False
+
+        if self.input["Alt fire"]:
+            self.weapon.alt_fire(self, entities, level)
+
+        # |Main fire|-----------------------------------------------------------------------------------------------
+        if self.input["Shoot"]:
+            if self.weapon.ammo != 0 and self.shot_allowed:
+                # |Main fire|-------------------------------------------------------------------------------------------
+                self.shoot_bullet(entities, level)
+
+                # tell if the trigger was pressed
+                if not self.weapon.full_auto:
+                    self.shot_allowed = False
+            # if the trigger is not pressed and the weapon is not a full auto, allow to shoot for the next trigger press
+            elif self.weapon.ammo == 0 and self.shot_allowed:
+                Fun.play_sound(self.weapon.jamming_sound, "SFX")
+                self.shot_allowed = False
+        else:
+            self.shot_allowed = True
+
+        # |Reload|--------------------------------------------------------------------------------------------------
+        if self.input["Reload"] and self.weapon.ammo_pool > 0:
+            self.no_shoot_state, self.reloading = self.weapon.reload()
+    else:
+        self.no_shoot_state -= 1
+
+    Fun.aim_system(self, self.weapon)
+
+    # |Status effects|----------------------------------------------------------------------------------------------
+    # ha ha, Fun go brr
+    Fun.status_manager(self, entities)
+
+    # |Movement Output|---------------------------------------------------------------------------------------------
+    # Make the player move
+    Fun.movement_output(self, level)
+    for e in entities["entities"]:
+        if e == self: continue
+        if self.collision_box.colliderect(e.collision_box):
+            e.vel = Fun.move_with_vel_angle(e.vel, 2, Fun.angle_between(e.collision_box.center, self.pos))
+            if e.team != self.team:
+                Fun.damage_calculation(e, round(abs(self.vel[0]) + abs(self.vel[1])) * 5, "Melee",
+                                       death_message="Ran over")
+            pass
+    if self.draw_aim_line or self.weapon.laser_sight:
+        pos = Fun.move_with_vel_angle(self.pos, -24, self.free_var["Move angle"])
+        entities["background particles"].append(Particles.LineParticle(
+            [pos[0], pos[1] - 14], Fun.BLUE, 1, self.weapon.range - 20,
+            self.aim_angle, 2, 0))
 
 
 # |Enemy Act|-----------------------------------------------------------------------------------------------------------

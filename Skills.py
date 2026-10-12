@@ -1,6 +1,7 @@
 import math
 import random
 import sys
+import pygame as pg
 
 import Bullets
 import Entity
@@ -1031,6 +1032,50 @@ def sand_buggy_burst_rocket(self, skill, entities, level):
     Fun.play_sound("Hitting 3", "SFX")
 
 
+# |Agent Cardinal|------------------------------------------------------------------------------------------------------
+def cardinal_rpg(self, skill, entities, level):
+    self.vel = [0, 0]
+    self.no_shoot_state += 1
+    self.status["Slowness"] += 1
+
+    # Visual warning
+    corner_1 = Fun.move_with_vel_angle(self.pos, 8, self.aim_angle + 90)
+    corner_2 = Fun.move_with_vel_angle(corner_1, 256, self.aim_angle)
+    corner_3 = Fun.move_with_vel_angle(corner_2, 16, self.aim_angle - 90)
+    corner_4 = Fun.move_with_vel_angle(corner_3, 256, self.aim_angle + 180)
+    points = [self.pos, corner_1, corner_2, corner_3, corner_4]
+
+    entities["background particles"].append(Particles.TransparentPolygon(points, Fun.DARK_RED, 1, 96))
+    mod = 1 - skill.recharge / skill.recharge_max
+    corner_1_p2 = Fun.move_with_vel_angle(self.pos, 8, self.aim_angle + 90)
+    corner_2_p2 = Fun.move_with_vel_angle(corner_1_p2, 256 * mod, self.aim_angle)
+    corner_3_p2 = Fun.move_with_vel_angle(corner_2_p2, 16, self.aim_angle - 90)
+    corner_4_p2 = Fun.move_with_vel_angle(corner_3_p2, 256 * mod, self.aim_angle + 180)
+    points_p2 = [self.pos, corner_1_p2, corner_2_p2, corner_3_p2, corner_4_p2]
+    entities["background particles"].append(Particles.TransparentPolygon(points_p2, Fun.DARK_RED, 1, 96))
+
+    if mod == 1:
+        damage = 150
+        Bullets.spawn_bullet(self, entities, Bullets.ExplosionPrimaryType1, Fun.move_with_vel_angle(self.pos, 16, self.aim_angle), self.aim_angle,
+                             [14, 50, 8, damage,
+                              {"Secondary explosion": {"Duration": 12, "Growth": 3.5, "Damage mod": 0.5}}])
+        self.agro += 10
+        Fun.play_sound("Hitting 3")
+        self.weapon.sprite = self.free_var["Weapon sprite"]
+        self.weapon_draw_dist, self.draw_angle, self.draw_rotated_dist, self.weapon_draw_angle = -0, 0, 0, 0
+        # Make the rocket launcher be thrown out
+        entities["particles"].append(Particles.AfterImageRotatedBouncing(self.pos.copy(), self.free_var["RPG sprite"], 300, self.aim_angle-180, 80))
+        return
+
+    self.weapon.sprite = self.free_var["RPG sprite"]
+    #             self.weapon_draw_dist = -10
+    #             self.draw_angle = random.randint(1, 8) * -2
+    self.weapon_draw_dist, self.draw_angle, self.draw_rotated_dist, self.weapon_draw_angle = pg.math.clamp(-25* mod*1.75, -25, 0), 30* mod, pg.math.clamp(8*mod*1.5, 0, 8), -30* mod
+    if self.time % 5 == 0:
+        Fun.play_sound("Charge")
+    #sd
+
+
 # |Skill repertory|-----------------------------------------------------------------------------------------------------
 # Offense   : Purely damaging skills
 # Support   : Give you bonuses and don't affect the others much
@@ -1318,6 +1363,18 @@ skill_repertory = {
          "recharge rate": 1,
          "depletion rate": 0,
          "recharge max": 240,
+         "free variables": {}
+         },
+    # |Misc|------------------------------------------------------------------------------------------------------------
+    # Agent Cardinal
+    "RPG!":
+        {"name": "RPG!",
+         "class": "Offense",
+         "description": "",
+         "func": "cardinal_rpg",
+         "activation mode": "switch no cancel",
+         "depletion rate": 5,
+         "recharge max": 5 * 60,
          "free variables": {}
          },
 }

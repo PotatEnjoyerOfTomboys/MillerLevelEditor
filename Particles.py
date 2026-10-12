@@ -1694,6 +1694,33 @@ class AfterImageRotated:
             self.duration -= 1
 
 
+class AfterImageRotatedBouncing:
+    def __init__(self, pos, sprite, duration, angle, bounce):
+        self.survive_wipe = True
+        self.duration = duration
+        self.pos = pos
+        self.sprite = sprite
+        self.width = sprite.get_width()
+        self.height = sprite.get_height()
+        self.angle = angle
+        self.bounce = bounce
+        self.origin = [self.width / 2, self.height / 2]
+        # if modified_origin:
+        #     self.origin = modified_origin
+
+    def draw(self, WIN, scrolling):
+        if self.duration > 0:
+            drawing_pos = [
+                self.pos[0] + scrolling[0] - self.width // 2,
+                self.pos[1] + scrolling[1] - self.height // 2 - ( 16 * abs(math.sin(self.bounce / 12)))
+            ]
+            if self.bounce > 0:
+                 self.bounce -= 1
+            blitRotate(WIN, self.sprite, drawing_pos, self.origin, 180 - self.angle)
+            # WIN.blit(self.sprite, drawing_pos)
+            self.duration -= 1
+
+
 class BulletHole:
     def __init__(self, pos):
         self.survive_wipe = False

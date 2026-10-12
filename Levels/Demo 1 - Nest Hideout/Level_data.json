@@ -1,0 +1,87 @@
+{
+      "name": "Demo 1 - Nest Hideout",
+      "events": {
+            "Encounter 1 Start": [
+                  "Encounter 1 Start",
+                  {
+                        "rects": [
+                              [
+                                    13,
+                                    46,
+                                    10,
+                                    8
+                              ]
+                        ],
+                        "Conditions": "trigger_check_rect"
+                  },
+                  true,
+                  [
+                        "generic_event"
+                  ],
+                  {
+                        "Default Event Actions": [
+                              {
+                                    "Name": "Shotgunner",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          20,
+                                          48,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Nest Shotgunner",
+                                    "Team": "Enemies"
+                              },
+                              {
+                                    "Name": "Trooper",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          21,
+                                          52,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Nest Trooper",
+                                    "Team": "Enemies"
+                              },
+                              {
+                                    "Name": "Shield",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          18,
+                                          51,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Nest Shield",
+                                    "Team": "Enemies"
+                              },
+                              {
+                                    "Name": "Commander",
+                                    "Type": "spawn",
+                                    "Class": "Entity",
+                                    "Pos": [
+                                          21,
+                                          50,
+                                          1,
+                                          1
+                                    ],
+                                    "Angle": 0,
+                                    "ID": "Nest Commander",
+                                    "Team": "Enemies"
+                              }
+                        ]
+                  }
+            ]
+      },
+      "free var": {},
+      "Characters": [
+            "Curtis"
+      ]
+}

@@ -2578,7 +2578,9 @@ def black_powder_revolver_alt_boss(self, entities, bullets):
 def aim_buff(self, entities, bullets):
     time_threshold = 400
     if self.time >= time_threshold:
-        for e in entities["enemies"]:
+        for e in entities["entities"]:
+            if e.team != self.team:
+                continue
             if Fun.check_point_in_circle(self.targeting_range, self.pos[0], self.pos[1], e.pos[0], e.pos[1]):
                 e.status["Perfect Aim"] += 1
     if self.time == time_threshold:
@@ -3136,6 +3138,24 @@ def sand_martin_1_passive(self, entities, bullets):
 
         entities["particles"].append(Particles.AfterImage(
             Fun.move_with_vel_angle(self.pos, -15, self.angle), Fun.SPRITES_RIOT_SHIELD[player_direction], 1))
+
+
+def battle_rifle_passive(self, entities, bullets):
+    if self.input["Alt fire"]:
+        self.weapon.fire_rate = 1
+        self.weapon.recoil = 40
+        self.input["Shoot"] = True
+    else:
+        self.weapon.recoil = 30
+        self.weapon.fire_rate = 10
+        # self.weapon.full_auto = False
+        # self.weapon.fire_rate = 6
+        # if self.weapon.ammo % 3 != 0:
+        #     self.weapon.full_auto = True
+        #     self.shot_allowed = True
+        #     self.input["Shoot"] = True
+        #     if (self.weapon.ammo - 1) % 3 == 0:
+        #         self.weapon.fire_rate = 14
 
 
 # |Ammo Bar Sprites|----------------------------------------------------------------------------------------------------
@@ -4595,6 +4615,37 @@ weapon_repertory = {
          "alt fire": "none",
          "passive": "azura_passive",
          "free var": {"Angle ref": False, "Mod": 1, "Charge cooldown": 0}},
+    # |Agent Cardinal|--------------------------------------------------------------------------------------------------
+    "Nest Battle Rifle":
+        {"name": "Nest Battle Rifle",
+         "ammo sprite": "Rifle Medium",
+         "class": "?????",
+         "sprite": "Sprites/Weapon/NEST/Nest Battle Rifle.png",
+         "gunshot sound": "Rifle 1 Shooting",
+         "reloading sound": "Reload Pistol 1",
+         "jamming sound": "Jamming",
+         "sound level": 1.1,
+         "accuracy": 2,
+         "spread": 2,
+         "handle": 7,
+         "recoil": 30,
+         "full auto": True,
+         "fire rate": 10,
+         "reload time": 70,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [8.5, 50, 5, 22, {"Piercing": True, "Smoke": False}],
+         "max ammo": 30,
+         "ammo pool": 3000,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0,
+         "jam duration": 0,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "battle_rifle_passive"},
+
     # |Enemy weapons|---------------------------------------------------------------------------------------------------
     # |Circle|----------------------------------------------------------------------------------------------------------
     "Laser Carbine":  # Laser Rifle, Has a laser pointer.
@@ -6014,6 +6065,35 @@ weapon_repertory = {
          "laser sight": True,
          "alt fire": "none",
          "passive": "gang_special_ammo"},
+    "Gang Compact SMG":
+        {"name": "Gang Compact SMG",
+         "class": "Semi-auto",
+         "sprite": "Sprites/Enemies/Weapons/Gang Compact SMG.png",
+         "gunshot sound": "Small arms",
+         "reloading sound": "Reload Enemy 1",
+         "jamming sound": "Reload Enemy 1",
+         "sound level": 0,
+         "accuracy": 6,
+         "spread": 8,
+         "handle": 12,
+         "recoil": 35,
+         "full auto": True,
+         "fire rate": 2,
+         "reload time": 240,
+         "bullet type": "Bullet",
+         "bullets per shot": 1,
+         "ammo cost": 1,
+         "bullet info": [6.25, 50, 2, 4, {"Piercing": False, "Smoke": False}],
+         "max ammo": 32,
+         "ammo pool": 3200,
+         "crit rate": 0,
+         "crit multiplier": 2,
+         "jam rate": 0.125,
+         "jam duration": 20,
+         "laser sight": False,
+         "alt fire": "none",
+         "passive": "none"},
+
     "Randy's Napalm":
         {"name": "Pirate Flame Thrower",
          "class": "Flame",

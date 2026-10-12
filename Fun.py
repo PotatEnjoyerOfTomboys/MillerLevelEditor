@@ -802,6 +802,7 @@ SPRITE_SAND_BUGGY_WHEEL = [
 ]
 
 # 15
+SPRITE_GANG_MOPED = get_sprite_stack_list(get_image('Sprites/Vehicles/Gang Moped.png'), 20)
 SPRITE_BULWARK = get_sprite_stack_list(get_image('Sprites/Vehicles/Bulwark.png'), 16)
 BULWARK_BASE = get_image('Sprites/Vehicles/Bulwarks.png')
 SPRITE_BULWARKS = [
@@ -1146,7 +1147,9 @@ class UniversalMenuLogic:
                             "Confirm": "Interact", "Return": "Reload"},
                  mouse_binds={"Confirm": "Shoot"},
                  use_mouse_inputs=False,
-                 default_return=-1, draw_value=False):
+                 default_return=-1,
+                 draw_value=False):
+
         self.key_pressed = DEFAULT_KEY_PRESSED
         self.key_cooldown = DEFAULT_KEY_COOLDOWN
         self.controller = PseudoPlayer()
@@ -1476,6 +1479,219 @@ class UniversalMenuLogic:
                 "Key Input": self.draw_key_input
             }[op["Render func"]](surface, op, [base_pos[0], y], font)
             y += 18
+        # mouse_pos = self.get_mouse_pos()
+        # pg.draw.rect(surface, WHITE, (mouse_pos[0]-1, mouse_pos[1]-1, 2, 2))
+
+
+class DoubleAxisMenuLogic:
+    def __init__(self, options, width=1,
+                 key_binds={"Select Up": "Up", "Select Down": "Down",
+                            "Select Left": "Left", "Select Right": "Right",
+                            "Confirm": "Interact", "Return": "Reload"},
+                 mouse_binds={"Confirm": "Shoot"},
+                 use_mouse_inputs=False,
+                 default_return=(0, 0),
+                 draw_value=False):
+
+        self.key_pressed = DEFAULT_KEY_PRESSED
+        self.key_cooldown = DEFAULT_KEY_COOLDOWN
+        self.controller = PseudoPlayer()
+        self.use_mouse_inputs = use_mouse_inputs
+        if use_mouse_inputs:
+            self.controller = PseudoPlayerMouseInput()
+        self.key_binds = key_binds
+        self.mouse_binds = mouse_binds
+        self.keys = []
+        self.mouse_keys = []
+        self.pressing = False
+
+        self.option_warp_around_limit = 16 # Use that for rendering
+
+        self.options = options # The complex part
+        # [
+        #   {
+        #       "Name": <display name>,
+        #       "Value": <number or string>,
+        #       "Sprite": <image>
+        #   },
+        # ]
+        self.selected_option = [0, 0]
+
+        self.max_option = [len(o) - 1 for o in self.options]
+        self.meta_max_option = len(self.max_option)-1
+
+        self.menu_mode = "Normal"
+
+        self.op_width = 20
+        self.op_height = 20
+
+        self.width = width
+        self.colour_high_vis = AMBER
+        self.colour_med_vis = UI_COLOUR_NEW_BACKDROP
+        self.colour_controls = UI_COLOUR_TUTORIAL
+        self.colour_low_vis = UI_COLOUR_NEW_BACKGROUND
+        self.default_return = default_return
+        self.draw_pos = [0, 0]
+
+        self.allow_click_confirm = False
+        self.draw_value = draw_value    # Use that later
+
+    def cooldown(self):
+        self.key_pressed = self.key_cooldown
+        play_sound("Menu move", "SFX")
+        self.controller = PseudoPlayer()
+        if self.use_mouse_inputs:
+            self.controller = PseudoPlayerMouseInput()
+        ppp = get_from_json("Key binds.json", "System")
+
+        self.max_option = [len(o) - 1 for o in self.options]
+        for i in ppp:
+            SYSTEM_CONTROLS[i] = ppp[i]
+
+    @staticmethod
+    def get_mouse_pos():
+        return get_scaled_mouse_pos()
+        # return pg.mouse.get_pos()
+
+    # |Menu Methods|----------------------------------------------------------------------------------------------------
+    def menu_mode_normal(self, WIN, CLOCK):
+        old_y = self.selected_option[1]
+        # Move on X
+        if self.controller.input[self.key_binds["Select Left"]]:
+            self.cooldown()
+            if self.selected_option[0] > 0:
+                self.selected_option[0] -= 1
+            elif self.selected_option[0] == 0 and not self.pressing:
+                self.selected_option[0] = self.max_option[self.selected_option[1]]
+                self.key_pressed *= 2
+            self.pressing = True
+
+        elif self.controller.input[self.key_binds["Select Right"]]:
+            self.cooldown()
+            if self.max_option[self.selected_option[1]] > self.selected_option[0]:
+                self.selected_option[0] += 1
+            elif self.max_option[self.selected_option[1]] == self.selected_option[0] and not self.pressing:
+                self.selected_option[0] = 0
+                self.key_pressed *= 2
+            self.pressing = True
+        # Move on Y
+        elif self.controller.input[self.key_binds["Select Up"]]:
+            self.cooldown()
+            if self.selected_option[1] > 0:
+                self.selected_option[1] -= 1
+            elif self.selected_option[1] == 0 and not self.pressing:
+                self.selected_option[1] = self.meta_max_option
+                self.key_pressed *= 2
+            self.pressing = True
+
+        elif self.controller.input[self.key_binds["Select Down"]]:
+            self.cooldown()
+            if self.meta_max_option > self.selected_option[1]:
+                self.selected_option[1] += 1
+            elif self.meta_max_option == self.selected_option[1] and not self.pressing:
+                self.selected_option[1] = 0
+                self.key_pressed *= 2
+            self.pressing = True
+
+        else:
+            self.pressing = False
+
+        # Select option using the cursor
+        if self.use_mouse_inputs:
+            if pg.mouse.get_rel() != (0, 0):
+                mouse_pos = self.get_mouse_pos()
+                base_pos = self.draw_pos.copy()
+                y = base_pos[1] + 30
+                give_click_confirm = False
+                for count, op in enumerate(self.options):
+                    if pg.Rect((base_pos[0] - 2, y - 2, 80 + 24 * self.width, 10 + 4)).collidepoint(mouse_pos):
+                        self.selected_option = count
+                        if not self.allow_click_confirm:
+                            play_sound("Menu move", "SFX")
+                        give_click_confirm = True
+                        break
+                    give_click_confirm = False
+                    y += 18
+                self.allow_click_confirm = give_click_confirm
+
+        # Make sure X value is valid
+        if self.selected_option[1] != old_y:
+            if self.max_option[self.selected_option[1]] < self.selected_option[0]:
+                self.selected_option[0] = self.max_option[self.selected_option[1]]
+
+        # Do something
+        if self.controller.input[self.key_binds["Confirm"]]:
+            selected_option_data = self.options[self.selected_option[1]][self.selected_option[0]]
+            play_sound("Menu confirm", "SFX")
+            return selected_option_data["Value"]
+
+            self.key_pressed = self.key_cooldown
+        if self.controller.input[self.key_binds["Return"]]:
+            return self.options[self.default_return[1]][self.default_return[0]]["Value"]
+        return False
+
+    def act(self, WIN, CLOCK):
+        self.keys = pg.key.get_pressed()
+        self.mouse_keys = pg.mouse.get_pressed()
+        needed_in_menu_and_game(WIN, self.keys)
+
+        if self.use_mouse_inputs:
+            self.controller.get_input(self.keys, self.mouse_keys)
+
+            if self.allow_click_confirm:
+                self.controller.input[self.key_binds["Confirm"]] = self.controller.input[self.mouse_binds["Confirm"]]
+        else:
+            self.controller.get_input(self.keys)
+
+        if self.key_pressed == 0:
+            return {
+                "Normal": self.menu_mode_normal,
+            }[self.menu_mode](WIN, CLOCK)
+        else:
+            self.key_pressed -= 1
+        return False
+
+    # |Draw Methods|----------------------------------------------------------------------------------------------------
+    def draw_default(self, surface, op, pos, font):
+        colour = self.colour_high_vis
+        if op == self.options[self.selected_option]:
+            colour = self.colour_low_vis
+        surface.blit(font.render(write_textline(f"{op['Name']}", send_back=True), True, colour), pos)
+
+    def draw(self, surface, base_pos, draw_move=True):
+        self.draw_pos = base_pos
+        font = create_temp_font_1(450)
+        # Draw instructions
+        if draw_move:
+            surface.blit(font.render(
+                f"{write_control(self.controller, 'Up', is_move=True)}"
+                f"{write_control(self.controller, 'Down', fucking_hell=False)}"
+                f"{write_control(self.controller, 'Left', fucking_hell=False)}"
+                f"{write_control(self.controller, 'Right', fucking_hell=False)}"
+                f", {write_textline('Select')}", True, self.colour_controls), base_pos)
+        surface.blit(font.render(
+            f"{write_control(self.controller, self.key_binds['Return'])} {write_textline('Menu Go Back')}, "
+            f"{write_control(self.controller, self.key_binds['Confirm'])} {write_textline('Menu Choose')}", True, self.colour_controls),
+            (base_pos[0], base_pos[1] + 15)
+        )
+        # Draw options
+        y = base_pos[1] + 30
+
+        for count_y, op_y in enumerate(self.options):
+            x = base_pos[0] + 30
+
+            for count_x, op_x in enumerate(op_y):
+
+                draw_sprite(surface, op_x["Sprite"], [x+2, y+2], [0, 0])
+                # col =  self.colour_med_vis
+                if [count_x, count_y] == self.selected_option:
+                    col = self.colour_high_vis
+
+                    pg.draw.rect(surface, col, (x, y, self.op_width, self.op_height), 1)
+                #
+                x += self.op_width
+
+            y += self.op_height
         # mouse_pos = self.get_mouse_pos()
         # pg.draw.rect(surface, WHITE, (mouse_pos[0]-1, mouse_pos[1]-1, 2, 2))
 

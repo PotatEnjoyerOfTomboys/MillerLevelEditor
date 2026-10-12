@@ -9,20 +9,53 @@ import Entity
 import Main
 
 # To add:
-#   Option to resize
 #   Weather effects
 
 #   Sprint Dash Roll movement system
 
-#   Test level from editor
-
 #   Add NEST Agent character
 #   Add Detective Agency character
 
-#   Import old enemies
-#   Support for animated tiles
-#   More props
 #   Shaders? https://pygame-shaders.readthedocs.io/en/latest/surface_shaders.html
+#   Support for animated tiles
+
+#   Update old enemies
+#   More props
+
+#   Import and update old bosses
+#     Pirate    5
+#       Mary the Kid            .                           Improve wall bounce mechanic
+#       Charles/Samuel the Twins                            Better attack patterns
+#       Jacquotte the Lady      .                           Turn wagon switching into a back dash. Telegraph better the stun attack
+#       Lawrence the Son        .                           No major changes
+#       Captain Morgan          .                           No major changes
+#     Nest      11
+#       Unknown Man             .                           No major changes
+#       Heaviest Trooper        .                           No major changes
+#       Crow                    .                           No major changes
+#       Sparrow                 .                           No major changes
+#       Heron                   .                           No major changes
+#       Vulture                 .                           No major changes
+#     Anomaly   12
+#       Betelgeuse              .                           No major changes
+#     Tarot     29
+#       Curtis (Complete Tarot) .
+#       Magician                Misc                        No major changes
+#       High Priestess          Misc                        Remove noise mechanic? give new patterns
+#       Empress & Emperor       Gang                        Empress affects speed instead of friction, Emperor uses chain for attacks
+#       Hierophant              CommieBots                  Deploys only "drones" and kamikazes. New attacks
+#       Svenus (Lovers)         Bounty Hunters and Mercs    Uses the doppelgänger with him too
+#       Chariot                 Bounty Hunters and Mercs    No major changes
+#       Justice                 Bounty Hunters and Mercs    Better patterns? Some bullets home while others are redirected 
+#       Wheel of Fortune        Misc                        No major changes
+#       Strength & Hanged Man   Gang                        Better visuals
+#       ? (Death)                                           No major changes
+#       Temperance              Bounty Hunters and Mercs    No major changes
+#       Devil                   Bounty Hunters and Mercs    She can move now, more patterns
+#       Tower                   Misc                        Switches between weapons as he loses health, more patterns
+#       Star, Moon and Sun      Gang                        Maybe change Star's attack and changes to AI?
+#       Judgement               Misc                        No major changes
+#       The World               Zither                      No major changes
 
 
 EMPTY_MAP_DATA = {"map": [],
@@ -45,7 +78,7 @@ for f in dir(Event):
     if "trigger_check_" in f:
         ALL_TRIGGER_FUNC.append(f)
 DEFAULT_EVENT_ACTION_INFO = {
-    "spawn": {"Class": "Entity", "Pos": [0, 0, 1, 1], "Angle": 0, "ID": "", "Team": "Enemies"},
+    "spawn": {"Class": "Entity", "Pos": [0, 0, 1, 1], "Angle": 0, "ID": "", "Team": "Enemies", "Number of copies": 1},
     "despawn": {"Method": "Soft", "Conditions": []},
     "door": {"Door ID": 0, "Door state": True},
     "sound": {"Action": "Play", "Audio": "Silence"},
@@ -61,8 +94,8 @@ ALL_EVENT_ACTION_TYPE = [t for t in DEFAULT_EVENT_ACTION_INFO]
 PLAYABLE_CHARACTERS = [
     "Curtis",           # Advanced Movement. Gunsmith.
     "Lawrence",         # Advanced Movement. Get a new mechanic with oil for his fire attacks.
-                        # Fire attacks uses oil. Hitting with a gun attack restores oil. If a fire attacked used oil. It will ne stronger
-    "Mark",
+                        # Fire attacks uses oil. Hitting with a gun attack restores oil. If a fire attacked used oil. It will be stronger
+    "Mark",             #
     "Vivianne",         # Advanced Movement. Gunsmith.
 
     "Lord",             #
@@ -73,12 +106,9 @@ PLAYABLE_CHARACTERS = [
     "Jester",           #
     "Condor",           #
 
-    # NEST agent        # Advanced Movement.
-    # Has spamable gas grenades
-    # Skills
+    "Agent Cardinal",   # Advanced Movement.
     # Cloak & night vision mode.
     # For a time, becomes invisible, gains night vision but become restricted to a knife. Knife deals lots of damage
-    # <Skill 2>
 
     # Detective Agency  # Switch between John, Makoto and Flint. Each have a skill, an effect when they are switched too and at least 1 weapon.
                         # Health is shared between all 3
@@ -87,13 +117,14 @@ PLAYABLE_CHARACTERS = [
                             # Flint     WPN: Katana          Skill: Mag dumps pistol and throws it.  Switch: .
 
     # |Vertical movement version of all characters.|--------------------------------------------------------------------
-    "Curtis (Vertical)"
-
+    "Curtis (Vertical)",
+    "Spectator"
 ]
 
 
 def main(WIN, CLOCK):
-    pg.display.message_box(title="Get Hacked Bitch!", message="We fucked yo hard drive")
+    # ssssEntity.fake_render(["Gang Biker"], WIN, CLOCK)
+    # pg.display.message_box(title="Get Hacked Bitch!", message="We fucked yo hard drive")
     while True:
         # Get a list of available level directories
         valid_level_directories = []
@@ -191,7 +222,7 @@ def editor_menu(level, WIN, CLOCK):
                 break
             elif do_shit == "Test":
                 save_level_info(WIN, CLOCK, map_data, event_data, "~")
-                Main.custom_level(level_to_load="Ass Cheeks")
+                Main.custom_level(level_to_load="~")
             else:
                 editor_func = {
 
@@ -313,10 +344,37 @@ def map_editor_func(WIN, CLOCK, map_data, event_data):
                 rendering_editor_menu(WIN, CLOCK, map_data)
             if do_shit == "Resize":
                 # pick from list
-                new_size = map_data["size"].copy()
+                old_size = map_data["size"].copy()
                 list_width = []
+                width_default = 0
+                # 80*8, 56*8
+                for w in range(120):
+                    list_width.append((w - old_size[0]/8)*8)
+                    if list_width[-1] == 0:
+                        width_default = w - 1
                 list_height = []
-                map_data["size"] = new_size
+                height_default = 0
+                for h in range(120):
+                    list_height.append((h - old_size[1]/8)*8)
+                    if list_height[-1] == 0:
+                        height_default = h - 1
+                list_width.pop(0)
+                list_height.pop(0)
+
+                output = Fun.confirmation_popup(WIN, CLOCK, [315 - 128, 30], [
+                    {"Name": "Width", "Value": width_default, "On select": "Choose", "Render func": "Choose", "Choose": {"List": list_width}},
+                    {"Name": "Height", "Value": height_default, "On select": "Choose", "Render func": "Choose", "Choose": {"List": list_height}},
+                    {"Name": "Finish", "Value": "Finish", "On select": "Return", "Render func": "Text only"}
+                ], return_everything=True, show_value=False)
+
+                new_size = [(output[0]["Value"]+1) * 8, (output[1]["Value"]+1) * 8]
+
+                if new_size != old_size:
+                    Fun.confirmation_popup(WIN, CLOCK, [315 - 128, 300],
+                                           [{"Name": "Ok buddy.", "Value": "You suck!", "On select": "Return",
+                                             "Render func": "Text only"}],
+                                           text=f"Changed size. Old: {old_size}, New: {new_size}", popup_width=320)
+                    map_data["size"] = new_size
             menu_logic.cooldown()
 
         # |Draw|------------------------------------------------------------------------------------------------------------
@@ -1066,7 +1124,7 @@ def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_mod
                         func_map = {
                             "spawn": {"Class": ["Entity", "Item"], "Pos": [0, 0, 1, 1], "Angle": 0, "ID":
                                 {"Entity": [e for e in Entity.unified_entity_repertory], "Item": [i for i in Items.editor_items]},
-                                      "Team": "Enemies"
+                                      "Team": "Enemies", "Number of copies": 1
                                       # TODO: Add boss intro
                                       },
                             "despawn": {"Method": ["Soft", "Hard"], "Conditions": []},
@@ -1195,14 +1253,13 @@ def action_editor_func(WIN, CLOCK, action_to_edit, func_map, map_data=False):
                 elif type(func_map[do_shit]) == str:
                     action_to_edit[do_shit] = Fun.text_input_menu(WIN, CLOCK, surface_to_draw, [100, 60], text=action_to_edit[do_shit], nums_only=False)
                 elif type(func_map[do_shit]) == dict and do_shit == "Audio":
-                    # "Action"
-                    action_to_edit[do_shit] = Fun.pick_from_list_popup(WIN, CLOCK, action_to_edit[do_shit],
-                                                                           func_map[do_shit][
-                                                                               {"Play": "Sound",
-                                                                                "Change": "Music",
-                                                                                "Pause": "Music",
-                                                                                "Stop": "Music"}[action_to_edit["Action"]]
-                                                                           ])
+                    action_to_edit[do_shit] = Fun.pick_from_list_popup(
+                        WIN, CLOCK, action_to_edit[do_shit], func_map[do_shit][
+                            {"Play": "Sound", "Change": "Music", "Pause": "Music", "Stop": "Music"
+                             }[action_to_edit["Action"]]])
+                elif type(func_map[do_shit]) == dict and do_shit == "ID":
+                    if action_to_edit["Class"] == "Entity":
+                        action_to_edit[do_shit] = choose_enemy_type(WIN, CLOCK, action_to_edit[do_shit])
                 elif type(func_map[do_shit]) == dict:
                     action_to_edit[do_shit] = Fun.pick_from_list_popup(WIN, CLOCK, action_to_edit[do_shit],
                                                                            func_map[do_shit][action_to_edit["Class"]])
@@ -1425,6 +1482,185 @@ def metadata_editor_func(WIN, CLOCK, map_data, event_data):
 
         CLOCK.tick(60)
     return frame, empty_func, map_data, event_data
+
+
+# |Misc|----------------------------------------------------------------------------------------------------------------
+ENTITY_PORTRAITS = Fun.get_image('Sprites/UI/Entity Portraits.png')
+FAC_1_Y, FAC_2_Y, FAC_3_Y, PIRATE, NEST, COMMIE, ANOMALY, GANG = 48, 64, 80, 16, 32, 96, 112, 128
+PORTRAITS_DICT = {
+    'Lord': ENTITY_PORTRAITS.subsurface((0, 0, 16, 16)),
+    'Lord (Boss)': ENTITY_PORTRAITS.subsurface((0, 0, 16, 16)),
+    'Emperor': ENTITY_PORTRAITS.subsurface((16, 0, 16, 16)),
+    'Emperor (Boss)': ENTITY_PORTRAITS.subsurface((16, 0, 16, 16)),
+    'Wizard': ENTITY_PORTRAITS.subsurface((32, 0, 16, 16)),
+    'Wizard (Boss)': ENTITY_PORTRAITS.subsurface((32, 0, 16, 16)),
+    'Sovereign': ENTITY_PORTRAITS.subsurface((48, 0, 16, 16)),
+    'Sovereign (Boss)': ENTITY_PORTRAITS.subsurface((48, 0, 16, 16)),
+    'Duke': ENTITY_PORTRAITS.subsurface((64, 0, 16, 16)),
+    'Duke (Boss)': ENTITY_PORTRAITS.subsurface((64, 0, 16, 16)),
+    'Jester': ENTITY_PORTRAITS.subsurface((80, 0, 16, 16)),
+    'Jester (Boss)': ENTITY_PORTRAITS.subsurface((80, 0, 16, 16)),
+    'Condor': ENTITY_PORTRAITS.subsurface((96, 0, 16, 16)),
+    'Condor (Boss)': ENTITY_PORTRAITS.subsurface((96, 0, 16, 16)),
+    'Curtis': ENTITY_PORTRAITS.subsurface((112, 0, 16, 16)),
+    'Curtis (Boss)': ENTITY_PORTRAITS.subsurface((112, 0, 16, 16)),
+    'Curtis (Vertical)': ENTITY_PORTRAITS.subsurface((112, 0, 16, 16)),
+    'Lawrence': ENTITY_PORTRAITS.subsurface((128, 0, 16, 16)),
+    'Vivianne': ENTITY_PORTRAITS.subsurface((144, 0, 16, 16)),
+    'Mark': ENTITY_PORTRAITS.subsurface((160, 0, 16, 16)),
+    'Agent Cardinal': ENTITY_PORTRAITS.subsurface((224, 0, 16, 16)),
+    'Spectator': ENTITY_PORTRAITS.subsurface((240, 0, 16, 16)),
+
+
+    'Manager': ENTITY_PORTRAITS.subsurface((128, FAC_1_Y, 16, 16)),
+    'Body Guard': ENTITY_PORTRAITS.subsurface((0, FAC_1_Y, 16, 16)),
+    'Heavy Sniper': ENTITY_PORTRAITS.subsurface((16, FAC_1_Y, 16, 16)),
+    'Radar Operator': ENTITY_PORTRAITS.subsurface((32, FAC_1_Y, 16, 16)),
+    'Missile Operator': ENTITY_PORTRAITS.subsurface((48, FAC_1_Y, 16, 16)),
+    'Marksman': ENTITY_PORTRAITS.subsurface((64, FAC_1_Y, 16, 16)),
+    'Enforcer': ENTITY_PORTRAITS.subsurface((80, FAC_1_Y, 16, 16)),
+    'Drone': ENTITY_PORTRAITS.subsurface((96, FAC_1_Y, 16, 16)),
+
+    'Armed Shield Generator': ENTITY_PORTRAITS.subsurface((144, FAC_1_Y, 16, 16)),
+
+    'Energy Generator': ENTITY_PORTRAITS.subsurface((160, FAC_1_Y, 16, 16)),
+    'AA Laser': ENTITY_PORTRAITS.subsurface((176, FAC_1_Y, 16, 16)),
+    'Missile Battery': ENTITY_PORTRAITS.subsurface((192, FAC_1_Y, 16, 16)),
+    'Shield Generator': ENTITY_PORTRAITS.subsurface((208, FAC_1_Y, 16, 16)),
+    'Drone builder': ENTITY_PORTRAITS.subsurface((224, FAC_1_Y, 16, 16)),
+
+    'Sculptor': ENTITY_PORTRAITS.subsurface((128, FAC_2_Y, 16, 16)),
+    'Skirmisher': ENTITY_PORTRAITS.subsurface((0, FAC_2_Y, 16, 16)),
+    'BoomStick': ENTITY_PORTRAITS.subsurface((16, FAC_2_Y, 16, 16)),
+    'Smoker': ENTITY_PORTRAITS.subsurface((32, FAC_2_Y, 16, 16)),
+    'Snare': ENTITY_PORTRAITS.subsurface((48, FAC_2_Y, 16, 16)),
+    'Crusher': ENTITY_PORTRAITS.subsurface((64, FAC_2_Y, 16, 16)),
+    'Assassin': ENTITY_PORTRAITS.subsurface((80, FAC_2_Y, 16, 16)),
+    'Hover Tank': ENTITY_PORTRAITS.subsurface((144, FAC_2_Y, 16, 16)),
+    'Gilgamesh': ENTITY_PORTRAITS.subsurface((160, FAC_2_Y, 16, 16)),
+
+    'Infantry': ENTITY_PORTRAITS.subsurface((0, FAC_3_Y, 16, 16)),
+    'Flamer': ENTITY_PORTRAITS.subsurface((16, FAC_3_Y, 16, 16)),
+    'Spotter': ENTITY_PORTRAITS.subsurface((32, FAC_3_Y, 16, 16)),
+    'Artilleryman': ENTITY_PORTRAITS.subsurface((48, FAC_3_Y, 16, 16)),
+    'Grenadier': ENTITY_PORTRAITS.subsurface((64, FAC_3_Y, 16, 16)),
+    'Bulwark': ENTITY_PORTRAITS.subsurface((80, FAC_3_Y, 16, 16)),
+    'Commanding Officer': ENTITY_PORTRAITS.subsurface((128, FAC_3_Y, 16, 16)),
+    'Super Bulwark': ENTITY_PORTRAITS.subsurface((96, FAC_3_Y, 16, 16)),
+    'Fire Support Mech': ENTITY_PORTRAITS.subsurface((144, FAC_3_Y, 16, 16)),
+    'Attack Helicopter': ENTITY_PORTRAITS.subsurface((160, FAC_3_Y, 16, 16)),
+
+    'Rigel': ENTITY_PORTRAITS.subsurface((0, GANG+16, 16, 16)),
+    'Fish': ENTITY_PORTRAITS.subsurface((224, ANOMALY, 16, 16)),
+    'Fish 2': ENTITY_PORTRAITS.subsurface((240, ANOMALY, 16, 16)),
+
+    'Pirate Swordsman': ENTITY_PORTRAITS.subsurface((48, PIRATE, 16, 16)),
+    'Pirate Axeman': ENTITY_PORTRAITS.subsurface((64, PIRATE, 16, 16)),
+    'Pirate Grunt': ENTITY_PORTRAITS.subsurface((0, PIRATE, 16, 16)),
+    'Pirate Shotgunner': ENTITY_PORTRAITS.subsurface((16, PIRATE, 16, 16)),
+    'Pirate Defensive Shotgunner': ENTITY_PORTRAITS.subsurface((16, PIRATE, 16, 16)),
+    'Pirate Sniper': ENTITY_PORTRAITS.subsurface((32, PIRATE, 16, 16)),
+    'Pirate Railgunner': ENTITY_PORTRAITS.subsurface((112, PIRATE, 16, 16)),
+    'Pirate Demolisher': ENTITY_PORTRAITS.subsurface((80, PIRATE, 16, 16)),
+    'Pirate Flamer': ENTITY_PORTRAITS.subsurface((96, PIRATE, 16, 16)),
+    'Pirate Buffer 1': ENTITY_PORTRAITS.subsurface((144, PIRATE, 16, 16)),
+    'Pirate Blunderbusser': ENTITY_PORTRAITS.subsurface((128, PIRATE, 16, 16)),
+
+    'Nest Trooper': ENTITY_PORTRAITS.subsurface((0, NEST, 16, 16)),
+    'Nest Shotgunner': ENTITY_PORTRAITS.subsurface((16, NEST, 16, 16)),
+    'Nest Sniper': ENTITY_PORTRAITS.subsurface((32, NEST, 16, 16)),
+    'Nest Cloaker': ENTITY_PORTRAITS.subsurface((48, NEST, 16, 16)),
+    'Nest Shield': ENTITY_PORTRAITS.subsurface((64, NEST, 16, 16)),
+    'Nest Demolisher': ENTITY_PORTRAITS.subsurface((80, NEST, 16, 16)),
+    'Nest Flamer': ENTITY_PORTRAITS.subsurface((96, NEST, 16, 16)),
+    'Nest Railgunner': ENTITY_PORTRAITS.subsurface((112, NEST, 16, 16)),
+    'Nest Commander': ENTITY_PORTRAITS.subsurface((128, NEST, 16, 16)),
+    'Nest Bunker': ENTITY_PORTRAITS.subsurface((144, NEST, 16, 16)),
+    'Nest Heavy Trooper': ENTITY_PORTRAITS.subsurface((160, NEST, 16, 16)),
+
+    'Gang Grunt': ENTITY_PORTRAITS.subsurface((0, GANG, 16, 16)),
+    'Gang Shotgunner': ENTITY_PORTRAITS.subsurface((16, GANG, 16, 16)),
+    'Gang Defensive Shotgunner': ENTITY_PORTRAITS.subsurface((16, GANG, 16, 16)),
+    'Gang Sniper': ENTITY_PORTRAITS.subsurface((32, GANG, 16, 16)),
+    'Gang Pipe': ENTITY_PORTRAITS.subsurface((48, GANG, 16, 16)),
+    'Gang Biker': ENTITY_PORTRAITS.subsurface((80, GANG, 16, 16)),
+
+    'Monolith': ENTITY_PORTRAITS.subsurface((0, ANOMALY, 16, 16)),
+    'Eye': ENTITY_PORTRAITS.subsurface((16, ANOMALY, 16, 16)),
+    'Void': ENTITY_PORTRAITS.subsurface((32, ANOMALY, 16, 16)),
+    'Spook': ENTITY_PORTRAITS.subsurface((80, ANOMALY, 16, 16)),
+    'Slime': ENTITY_PORTRAITS.subsurface((48, ANOMALY, 16, 16)),
+    'Snake': ENTITY_PORTRAITS.subsurface((64, ANOMALY, 16, 16)),
+
+    'CommieBot.Sickle': ENTITY_PORTRAITS.subsurface((0, COMMIE, 16, 16)),
+    'CommieBot.Hammer': ENTITY_PORTRAITS.subsurface((16, COMMIE, 16, 16)),
+    'CommieBot.Kamikaze': ENTITY_PORTRAITS.subsurface((32, COMMIE, 16, 16)),
+    'CommieBot.Molotov': ENTITY_PORTRAITS.subsurface((48, COMMIE, 16, 16)),
+    'CommieBot.Rifle': ENTITY_PORTRAITS.subsurface((80, COMMIE, 16, 16)),
+
+
+}
+def choose_enemy_type(WIN, CLOCK, current_selection):
+    # Build menu
+    menu_options = {"Playable Character": []}
+    for p in PLAYABLE_CHARACTERS:
+        menu_options["Playable Character"].append(p)
+
+    for e in Entity.enemy_repertory:
+        faction = Entity.enemy_repertory[e]["faction"]
+        if faction not in menu_options:
+            menu_options.update({faction: []})
+        menu_options[faction].append(e)
+
+    default_action = [0, 0]
+    actual_options = []
+    for y, fac in enumerate(menu_options):
+        actual_options.append([])
+        for x, e_ass in enumerate(menu_options[fac]):
+            sprite = pg.transform.scale(Fun.MISSING_TEXTURE, (16, 16))
+            if e_ass == current_selection:
+                default_action = [x, y]
+            if e_ass in PORTRAITS_DICT:
+                sprite = PORTRAITS_DICT[e_ass]
+            actual_options[-1].append({"Name": e_ass,  "Value": e_ass, "Sprite": sprite}
+        )
+    #
+    test_menu = Fun.DoubleAxisMenuLogic(
+        actual_options
+    )
+    test_menu.selected_option = default_action
+    draw = True
+    while True:
+        # |Menu Logic|--------------------------------------------------------------------------------------------------
+        do_shit = test_menu.act(WIN, CLOCK)
+        if do_shit:
+            print(do_shit)
+            test_menu.cooldown()
+            return do_shit
+
+        # Sub menus are handled in their own function
+        # A sub menu can load another sub menu
+
+        # |Draw|--------------------------------------------------------------------------------------------------------
+        if draw:
+            # width, height = WIN.get_size()
+            width, height = 630, 450
+            frame = pg.Surface((630, 450))
+            surface_to_draw = frame
+            WIN.fill(Fun.BLACK)
+
+            surface_to_draw.fill(Fun.UI_COLOUR_BACKGROUND)
+
+            # surface_to_draw.blit(temp_ui_font.render("", True, AMBER), (25 + x_mod, 25))
+            test_menu.draw(surface_to_draw, [5, 50])
+            # ssurface_to_draw.blit(menu_frame, [0, 0])
+
+            # temp_ui_font = Fun.create_temp_font_1(height)
+
+            Fun.scale_render(WIN, surface_to_draw, CLOCK)
+            pg.display.flip()
+
+        CLOCK.tick(60)
 
 
 # |Test functions|------------------------------------------------------------------------------------------------------

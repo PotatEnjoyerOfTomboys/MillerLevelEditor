@@ -2042,8 +2042,6 @@ def ally_sub_input_lawrence(self, entities, level):
 
 
 # Fortress
-
-
 def fortress_input(self, entities, level):
     self.input = Fun.get_default_inputs()
     # If it doesn't act like a normal ally
@@ -2358,7 +2356,7 @@ def makoto_input(self, entities, level):
     move_target = universal_pathfinding(self, level, self.owner.pos)
     aaa = bool(move_target)
     if not move_target:
-        move_target = self.owner .pos
+        move_target = self.owner.pos
     entity_move_toward_point(self, move_target, 48)
 
     # entity_spread_apart(self, entities)
@@ -2371,31 +2369,26 @@ def makoto_input(self, entities, level):
 
 # |No Name TSS|---------------------------------------------------------------------------------------------------------
 def enemy_input_commie_type_1(self, entities, level):
-    # This version is used by all commie bots
-    # Input functions are the IA for an enemy
-    # better targeting system
     target, target_angle, wall_in = entity_target_detection(self, entities, level)
-
     self.input = Fun.get_default_inputs()
     if target:
-        aim_target = self.target.pos.copy()
-        self.angle = Fun.angle_between(aim_target, self.pos)
+        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
+        true_target = universal_pathfinding(self, level, move_target)
+        if not true_target:
+            # if self.reloading: mod = 3
+            self.mouse_pos = self.target.pos
 
-        self.input["Right"] = self.pos[0] < target[0]
-        self.input["Left"] = self.pos[0] > target[0]
-        self.input["Down"] = self.pos[1] < target[1]
-        self.input["Up"] = self.pos[1] > target[1]
-
-        # Just randomly attack
-        if random.randint(0, self.weapon.fire_rate // 2) == 0:
-            self.input["Shoot"] = True
-        if not self.input["Shoot"]:
-            if random.randint(0, self.weapon.fire_rate) == 0:
-                self.input["Alt fire"] = True
+            # Just randomly attack
+            if random.randint(0, self.weapon.fire_rate // 2) == 0:
+                self.input["Shoot"] = True
+            if not self.input["Shoot"]:
+                if random.randint(0, self.weapon.fire_rate) == 0:
+                    self.input["Alt fire"] = True
+            entity_move_toward_point(self, move_target, 16)
+        # Reloading
         self.input["Reload"] = self.weapon.ammo == 0
 
     entity_spread_apart(self, entities)
-
     # Stunned status manager
     Fun.stunned_manager(self)
     return target, target_angle
@@ -2494,44 +2487,42 @@ def enemy_input_fish_2(self, entities, level):
 
 
 def enemy_input_shotgunner_type_1(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, original_target, target_angle = entity_target_detection(self, entities, level)
-    original_target = target
-    # target, target_angle, wall_in = entity_target_detection(self, entities, level)
+    target, target_angle, wall_in = entity_target_detection(self, entities, level)
+    self.input = Fun.get_default_inputs()
 
     self.input = Fun.get_default_inputs()
 
     if target:
-        self.angle = Fun.angle_between(target, self.pos)
-        # modify position of target for some ia types
+        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
 
-        # Goes behind
-        target = [original_target[0] + self.weapon.range / 2 * math.cos(target_angle * math.pi / 180),
-                  original_target[1] + self.weapon.range / 2 * math.sin(target_angle * math.pi / 180)]
+        true_target = universal_pathfinding(self, level, move_target)
+        if not true_target:
+            # modify position of target for some ia types
+            mod = 1
+            if self.reloading: mod = 3
+            self.mouse_pos = self.target.pos
+            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.98 * mod,
+                                         get_away=self.weapon.range * 0.75 * mod)
 
+            true_target =  [
+                move_target[0] + self.weapon.range / 2 * math.cos(target_angle * math.pi / 180),
+                move_target[1] + self.weapon.range / 2 * math.sin(target_angle * math.pi / 180)
+            ]
+            entity_shoot_no_startup_lag(self, og_dist, self.weapon.range * self.ai_weapon_range_mod)
+        entity_move_toward_point(self, true_target, 96)
+        # Reloading
+        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
+            self.input["Reload"] = True
+    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
+        self.input["Reload"] = True
 
-        if self.pos[0] < target[0]:
-            self.input["Right"] = True
-        elif self.pos[0] > target[0]:
-            self.input["Left"] = True
-        if self.pos[1] < target[1]:
-            self.input["Down"] = True
-        elif self.pos[1] > target[1]:
-            self.input["Up"] = True
-
-        # Check if something is in range
-        if random.randint(0, self.weapon.fire_rate) == 0 and \
-                Fun.check_point_in_circle(self.weapon.range * 1.75, self.pos[0], self.pos[1],
-                                          original_target[0],
-                                          original_target[1]):
-            self.input["Shoot"] = True
-    self.input["Reload"] = self.weapon.ammo == 0
+    entity_spread_apart(self, entities)
     # Stunned status manager
     Fun.stunned_manager(self)
     return target, target_angle
 
 
+# TODO: Update
 def enemy_input_shotgunner_type_2(self, entities, level):
     # Input functions are the IA for an enemy
     # better targeting system
@@ -2598,43 +2589,7 @@ def enemy_input_shotgunner_type_2(self, entities, level):
     return target, target_angle
 
 
-def enemy_input_flamer_type_1(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, original_target, target_angle = entity_target_detection(self, entities, level)
-    original_target = target
-
-    Fun.get_default_inputs()
-
-    if target:
-        self.angle = Fun.angle_between(target, self.pos)
-        # modify position of target for some ia types
-
-        # Goes behind
-        target = [original_target[0] + self.weapon.range / 2 * math.cos(target_angle * math.pi / 180),
-                  original_target[1] + self.weapon.range / 2 * math.sin(target_angle * math.pi / 180)]
-
-
-        if self.pos[0] < target[0]:
-            self.input["Right"] = True
-        elif self.pos[0] > target[0]:
-            self.input["Left"] = True
-        if self.pos[1] < target[1]:
-            self.input["Down"] = True
-        elif self.pos[1] > target[1]:
-            self.input["Up"] = True
-
-        # Check if something is in range
-        if Fun.check_point_in_circle(self.weapon.range * 2, self.pos[0], self.pos[1],
-                                     target[0],
-                                     target[1]):
-            self.input["Shoot"] = True
-    self.input["Reload"] = self.weapon.ammo == 0
-    # Stunned status manager
-    Fun.stunned_manager(self)
-    return target, target_angle
-
-
+# TODO: Update
 def enemy_input_buffer_type_1(self, entities, level):
     # Input functions are the IA for an enemy
     # better targeting system
@@ -2697,139 +2652,79 @@ def enemy_input_buffer_type_1(self, entities, level):
 
 
 def enemy_input_grunt_type_1(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, original_target, target_angle = entity_target_detection(self, entities, level)
+    target, target_angle, wall_in = entity_target_detection(self, entities, level)
+    self.input = Fun.get_default_inputs()
     original_target = target
 
     self.input = Fun.get_default_inputs()
 
     if target:
-        self.angle = Fun.angle_between(target, self.pos)
-        # modify position of target for some ia types
+        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
 
-        # Goes in front
-        target = [original_target[0] - self.weapon.range / 5 * math.cos(target_angle * math.pi / 180),
-                  original_target[1] - self.weapon.range / 5 * math.sin(target_angle * math.pi / 180)]
+        true_target = universal_pathfinding(self, level, move_target)
+        if not true_target:
+            # modify position of target for some ia types
+            mod = 1
+            if self.reloading: mod = 3
+            self.mouse_pos = self.target.pos
+            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.8 * mod,
+                                         get_away=self.weapon.range * 0.25 * mod)
 
-        dist = math.hypot(target[0] - self.pos[0], target[1] - self.pos[1])
+            true_target =  [
+                original_target[0] - self.weapon.range / 5 * math.cos(target_angle * math.pi / 180),
+                original_target[1] - self.weapon.range / 5 * math.sin(target_angle * math.pi / 180)
+            ]
+            entity_shoot_no_startup_lag(self, og_dist, self.weapon.range * self.ai_weapon_range_mod)
+        entity_move_toward_point(self, true_target, 96)
+        # Reloading
+        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
+            self.input["Reload"] = True
+    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
+        self.input["Reload"] = True
 
-        if self.pos[0] < target[0] and dist > self.weapon.range / 5 * 4:
-            self.input["Right"] = True
-        elif self.pos[0] > target[0] and dist > self.weapon.range / 5 * 4:
-            self.input["Left"] = True
-        if self.pos[1] < target[1] and dist > self.weapon.range / 5 * 4:
-            self.input["Down"] = True
-        elif self.pos[1] > target[1] and dist > self.weapon.range / 5 * 4:
-            self.input["Up"] = True
-
-        # Check if something is in range
-        if random.randint(0, self.weapon.fire_rate) == 0 and \
-                Fun.check_point_in_circle(self.weapon.range, self.pos[0], self.pos[1],
-                                          target[0],
-                                          target[1]):
-            self.input["Shoot"] = True
-    self.input["Reload"] = self.weapon.ammo == 0
+    entity_spread_apart(self, entities)
     # Stunned status manager
     Fun.stunned_manager(self)
     return target, target_angle
 
 
 def enemy_input_sniper_type_1(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, original_target, target_angle = entity_target_detection(self, entities, level)
+    target, target_angle, wall_in = entity_target_detection(self, entities, level)
+    self.input = Fun.get_default_inputs()
     original_target = target
 
     self.input = Fun.get_default_inputs()
 
     if target:
-        dist = math.hypot(target[0] - self.pos[0], target[1] - self.pos[1])
+        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
 
-        self.angle = Fun.angle_between(self.target.pos, self.pos)
+        true_target = universal_pathfinding(self, level, move_target)
+        if not true_target:
+            # modify position of target for some ia types
+            mod = 1
+            if self.reloading: mod = 3
+            self.mouse_pos = self.target.pos
+            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.8 * mod,
+                                         get_away=self.weapon.range * 0.5 * mod)
 
-        if dist > self.weapon.range / 5 * 4:
-            self.input["Right"] = self.pos[0] < target[0]
-            self.input["Left"] = self.pos[0] > target[0]
-            self.input["Down"] = self.pos[1] < target[1]
-            self.input["Up"] = self.pos[1] > target[1]
+            true_target =  [
+                original_target[0] - self.weapon.range / 5 * math.cos(target_angle * math.pi / 180),
+                original_target[1] - self.weapon.range / 5 * math.sin(target_angle * math.pi / 180)
+            ]
+            entity_shoot_with_startup_lag(self, og_dist, self.weapon.range * self.ai_weapon_range_mod)
+        entity_move_toward_point(self, true_target, 96)
 
-        # The AI will try to get away from the player if he gets too close
-        if dist < self.weapon.range / 2:
-            self.input = Fun.get_default_inputs()
-            if self.pos[0] > target[0]:
-                self.input["Right"] = True
-            elif self.pos[0] < target[0]:
-                self.input["Left"] = True
-            if self.pos[1] > target[1]:
-                self.input["Down"] = True
-            elif self.pos[1] < target[1]:
-                self.input["Up"] = True
+        # Reloading
+        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
+            self.input["Reload"] = True
+    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
+        self.input["Reload"] = True
 
-        # Check if something is in range
-        # random.randint(0, self.weapon.fire_rate) == 0 and \
-        if self.weapon.ammo > 0 and \
-                Fun.check_point_in_circle(self.weapon.range, self.pos[0], self.pos[1], target[0], target[1]) and \
-                self.free_var['Startup lag'] == 0:
-            self.free_var['Startup lag'] += 1
-    self.input["Reload"] = self.weapon.ammo == 0
-    self.draw_aim_line = False
-    if self.free_var['Startup lag'] > 0:
-        if start_up_lag_handler(self, self.free_var["Startup time"]):
-            self.input["Shoot"] = True
-        self.draw_aim_line = self.weapon.laser_sight
+    entity_shoot_startup_handler(self)
 
+    entity_spread_apart(self, entities)
     # Stunned status manager
     Fun.stunned_manager(self)
-    return target, target_angle
-
-
-def enemy_input_sniper_type_2(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, original_target, target_angle = entity_target_detection(self, entities, level)
-    original_target = target
-
-    self.input = Fun.get_default_inputs()
-
-    if target:
-        self.angle = Fun.angle_between(target, self.pos)
-        dist = math.hypot(target[0] - self.pos[0], target[1] - self.pos[1])
-
-        if self.pos[0] < target[0] and dist > self.weapon.bullet_info[2] / 5 * 4:
-            self.input["Right"] = True
-        elif self.pos[0] > target[0] and dist > self.weapon.bullet_info[2] / 5 * 4:
-            self.input["Left"] = True
-        if self.pos[1] < target[1] and dist > self.weapon.bullet_info[2] / 5 * 4:
-            self.input["Down"] = True
-        elif self.pos[1] > target[1] and dist > self.weapon.bullet_info[2] / 5 * 4:
-            self.input["Up"] = True
-
-        # The AI will try to get away from the player if he gets too close
-        if dist < self.weapon.bullet_info[2] * 0.95:
-            self.input = Fun.get_default_inputs()
-            if self.pos[0] > target[0]:
-                self.input["Right"] = True
-            elif self.pos[0] < target[0]:
-                self.input["Left"] = True
-            if self.pos[1] > target[1]:
-                self.input["Down"] = True
-            elif self.pos[1] < target[1]:
-                self.input["Up"] = True
-
-            # Check if something is in range
-            if self.weapon.ammo > 0 and \
-                    Fun.check_point_in_circle(self.weapon.range, self.pos[0], self.pos[1], target[0], target[1]) and \
-                    self.free_var['Startup lag'] == 0:
-                self.free_var['Startup lag'] += 1
-    self.input["Reload"] = self.weapon.ammo == 0
-    self.draw_aim_line = False
-    if self.free_var['Startup lag'] > 0:
-        if start_up_lag_handler(self, self.free_var["Startup time"]):
-            self.input["Shoot"] = True
-        self.draw_aim_line = self.weapon.laser_sight
-
-    # Stunned status manager
     Fun.stunned_manager(self)
     return target, target_angle
 
@@ -2837,44 +2732,39 @@ def enemy_input_sniper_type_2(self, entities, level):
 def enemy_input_crazies_type_1(self, entities, level):
     # Input functions are the IA for an enemy
     # better targeting system
-    target, original_target, target_angle = entity_target_detection(self, entities, level)
+    target, target_angle, wall_in = entity_target_detection(self, entities, level)
+    self.input = Fun.get_default_inputs()
     original_target = target
 
     self.input = Fun.get_default_inputs()
 
     if target:
-        self.angle = Fun.angle_between(target, self.pos)
-        # modify position of target for some ia types
+        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
 
-        # Goes in front
-        # testing = random.randint(2, 6)
-        target = [original_target[0] - self.weapon.range / 1.25 * math.cos(target_angle * math.pi / 180),
-                  original_target[1] - self.weapon.range / 1.25 * math.sin(target_angle * math.pi / 180)]
+        true_target = universal_pathfinding(self, level, move_target)
+        if not true_target:
+            # Check if something is in range
+            if Fun.check_point_in_circle(100, self.pos[0], self.pos[1],
+                                         true_target[0],
+                                         true_target[1]) \
+                    and random.randint(0, self.weapon.fire_rate // 2) == 0:
+                self.input["Shoot"] = True
+            if not self.input["Shoot"]:
+                if Fun.check_point_in_circle(500, self.pos[0], self.pos[1],
+                                             true_target[0],
+                                             true_target[1]) \
+                        and random.randint(0, self.weapon.fire_rate) == 0:
+                    self.input["Alt fire"] = True
 
-        dist = math.hypot(target[0] - self.pos[0], target[1] - self.pos[1])
+        entity_move_toward_point(self, true_target, 2)
+        # Reloading
+        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
+            self.input["Reload"] = True
+    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
+        self.input["Reload"] = True
 
-        if self.pos[0] < target[0]:
-            self.input["Right"] = True
-        elif self.pos[0] > target[0]:
-            self.input["Left"] = True
-        if self.pos[1] < target[1]:
-            self.input["Down"] = True
-        elif self.pos[1] > target[1]:
-            self.input["Up"] = True
+    entity_spread_apart(self, entities)
 
-        # Check if something is in range
-        if Fun.check_point_in_circle(100, self.pos[0], self.pos[1],
-                                     target[0],
-                                     target[1]) \
-                and random.randint(0, self.weapon.fire_rate // 2) == 0:
-            self.input["Shoot"] = True
-        if not self.input["Shoot"]:
-            if Fun.check_point_in_circle(500, self.pos[0], self.pos[1],
-                                         target[0],
-                                         target[1]) \
-                    and random.randint(0, self.weapon.fire_rate) == 0:
-                self.input["Alt fire"] = True
-    self.input["Reload"] = self.weapon.ammo == 0
     # Stunned status manager
     Fun.stunned_manager(self)
     return target, target_angle
@@ -2979,48 +2869,8 @@ def nest_formation_manager(self, entities, level):
     return output
 
 
-def enemy_input_nest_trooper(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, original_target, target_angle = entity_target_detection(self, entities, level)
-    original_target = target
-
-    self.input = Fun.get_default_inputs()
-
-    if target:
-        self.angle = Fun.angle_between(target, self.pos)
-        # modify position of target for some ia types
-
-        # Goes in front
-        target = [original_target[0] - self.weapon.range / 5 * math.cos(target_angle * math.pi / 180),
-                  original_target[1] - self.weapon.range / 5 * math.sin(target_angle * math.pi / 180)]
-
-        og_dist = Fun.distance_between(original_target, self.pos)
-        range_target = og_dist > self.weapon.range * 0.65
-        if range_target:
-            self.input["Right"] = self.pos[0] < target[0]
-            self.input["Left"] = self.pos[0] > target[0]
-            self.input["Down"] = self.pos[1] < target[1]
-            self.input["Up"] = self.pos[1] > target[1]
-
-        if og_dist < self.weapon.range * 0.3:
-            self.input = {"Up": self.pos[1] < target[1], "Right": self.pos[0] > target[0],
-                          "Left": self.pos[0] < target[0], "Down": self.pos[1] > target[1], "Dash": False,
-                          "Shoot": False, "Alt fire": False, "Reload": False,
-            "Interact": False, "Skill 1": False, "Skill 2": False,
-            "Order Hold": False, "Order Follow": False, "Order Attack": False, "Order Act Free": False}
-
-        # Check if something is in range
-        if random.randint(0, self.weapon.fire_rate) == 0 and Fun.check_point_in_circle(
-                self.weapon.range * 0.8, self.pos[0], self.pos[1], original_target[0], original_target[1]):
-            self.input["Shoot"] = True
-
-        self.input["Alt fire"] = random.random() < 0.7 and self.weapon.ammo in [
-            round(self.weapon.max_ammo * 0.25), round(self.weapon.max_ammo * 0.75)
-        ]
-    self.input["Reload"] = self.weapon.ammo == 0
+def nest_formation_input(self, entities, level):
     formation_target = nest_formation_manager(self, entities, level)
-
     if formation_target:
         self.input = {"Up": self.pos[1] > formation_target[1], "Right": self.pos[0] < formation_target[0],
                       "Left": self.pos[0] > formation_target[0], "Down": self.pos[1] < formation_target[1],
@@ -3030,94 +2880,85 @@ def enemy_input_nest_trooper(self, entities, level):
             "Interact": False, "Skill 1": False, "Skill 2": False,
             "Order Hold": False, "Order Follow": False, "Order Attack": False, "Order Act Free": False}
 
-    if not self.cutscene_mode:
 
-        if dodging(self, entities, entities["bullets"], search_range=32, bullet_minimum=1, random_chance=(3, 0),
-                   dodge_angles=(60, 120), dodge_vel=10, invulnerability_time=5):
-            for x in range(3):
-                entities["particles"].append(Particles.Smoke(Fun.random_point_in_circle(self.pos, 16)))
+def enemy_input_nest_trooper(self, entities, level):
+    target, target_angle, wall_in = entity_target_detection(self, entities, level)
+    self.input = Fun.get_default_inputs()
+
+    if target:
+        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
+
+        true_target = universal_pathfinding(self, level, move_target)
+        if not true_target:
+            true_target = move_target
+            mod = 1
+            if self.reloading: mod = 3
+            self.mouse_pos = self.target.pos
+            entity_move_toward_point(self, true_target, 96)
+            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.65 * mod,
+                                         get_away=self.weapon.range * 0.3 * mod)
+            entity_shoot_no_startup_lag(self, og_dist, self.weapon.range * 0.8)
+
+            self.input["Alt fire"] = random.random() < 0.7 and self.weapon.ammo in [
+                round(self.weapon.max_ammo * 0.25), round(self.weapon.max_ammo * 0.75)
+            ]
+
+        # Reloading
+        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
+            self.input["Reload"] = True
+    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
+        self.input["Reload"] = True
+
+    entity_spread_apart(self, entities)
+    nest_formation_input(self, entities, level)
+
+    if not self.cutscene_mode:
+        entity_dodge_bullets(self, entities, 12)
     # Stunned status manager
     Fun.stunned_manager(self)
-    #
 
     return target, target_angle
 
 
 def enemy_input_nest_sniper(self, entities,  level):
-    # Input functions are the IA for an enemy
-    # better targeting system
-    target, original_target, target_angle = entity_target_detection(self, entities, level)
-    original_target = target
-
+    target, target_angle, wall_in = entity_target_detection(self, entities, level)
     self.input = Fun.get_default_inputs()
 
     if target:
-        self.angle = Fun.angle_between(target, self.pos)
-        # modify position of target for some ia types
+        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
 
-        # Goes in front
-        target = [original_target[0] - self.weapon.range / 5 * math.cos(target_angle * math.pi / 180),
-                  original_target[1] - self.weapon.range / 5 * math.sin(target_angle * math.pi / 180)]
+        true_target = universal_pathfinding(self, level, move_target)
+        if not true_target:
+            true_target = move_target
+            mod = 1
+            if self.reloading: mod = 3
+            self.mouse_pos = self.target.pos
+            entity_move_toward_point(self, true_target, 96)
 
-        # dist = math.hypot(target[0] - self.pos[0], target[1] - self.pos[1])
-        dist = Fun.distance_between(original_target, self.pos)
+            entity_maintain_weapon_range(self, og_dist, move_target, self.weapon.range * 0.8 * mod,
+                                         get_away=self.weapon.range * 0.4 * mod)
 
-        self.input["Right"] = self.pos[0] < target[0] and dist > self.weapon.range * 0.8
-        self.input["Left"] = self.pos[0] > target[0] and dist > self.weapon.range * 0.8
-        self.input["Down"] = self.pos[1] < target[1] and dist > self.weapon.range * 0.8
-        self.input["Up"] = self.pos[1] > target[1] and dist > self.weapon.range * 0.8
+            entity_shoot_with_startup_lag(self, og_dist, self.weapon.range * 0.8)
 
-        if dist < self.weapon.range * 0.4:
-            self.input = Fun.get_default_inputs()
-            if self.pos[0] > target[0]:
-                self.input["Right"] = True
-            elif self.pos[0] < target[0]:
-                self.input["Left"] = True
-            if self.pos[1] > target[1]:
-                self.input["Down"] = True
-            elif self.pos[1] < target[1]:
-                self.input["Up"] = True
+        # Reloading
+        if self.weapon.ammo == 0 and self.weapon.ammo_pool > 0:
+            self.input["Reload"] = True
+    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
+        self.input["Reload"] = True
 
-            # Check if something is in range
-            if self.weapon.ammo > 0 and \
-                    Fun.check_point_in_circle(self.weapon.range*1.1, self.pos[0], self.pos[1], target[0], target[1]) and \
-                    self.free_var['Startup lag'] == 0:
-                self.free_var['Startup lag'] += 1
-    self.input["Reload"] = self.weapon.ammo == 0
-    self.draw_aim_line = False
-    if self.free_var['Startup lag'] > 0:
-        self.draw_aim_line = self.weapon.laser_sight
-        if start_up_lag_handler(self, self.free_var["Startup time"]):
-            self.input["Shoot"] = True
-
-    formation_target = nest_formation_manager(self, entities,  level)
-
-    if formation_target:
-        self.input = {"Up": False, "Right": False, "Left": False, "Down": False, "Dash": False,
-                      "Shoot": self.input["Shoot"], "Alt fire": self.input["Alt fire"], "Reload": False,
-            "Interact": False, "Skill 1": False, "Skill 2": False,
-            "Order Hold": False, "Order Follow": False, "Order Attack": False, "Order Act Free": False}
-        if self.pos[0] < formation_target[0]:
-            self.input["Right"] = True
-        elif self.pos[0] > formation_target[0]:
-            self.input["Left"] = True
-        if self.pos[1] < formation_target[1]:
-            self.input["Down"] = True
-        elif self.pos[1] > formation_target[1]:
-            self.input["Up"] = True
+    entity_shoot_startup_handler(self)
+    entity_spread_apart(self, entities)
+    nest_formation_input(self, entities, level)
 
     if not self.cutscene_mode:
-        if dodging(self, entities, "bullets", search_range=32, bullet_minimum=1, random_chance=(3, 0),
-                   dodge_angles=(60, 120), dodge_vel=10, invulnerability_time=5):
-            for x in range(3):
-                entities["particles"].append(Particles.Smoke(Fun.random_point_in_circle(self.pos, 32)))
+        entity_dodge_bullets(self, entities, 12)
     # Stunned status manager
     Fun.stunned_manager(self)
-
 
     return target, target_angle
 
 
+# TODO: Update
 def enemy_input_nest_shield(self, entities, level):
     # Input functions are the IA for an enemy
     # better targeting system
@@ -3159,16 +3000,8 @@ def enemy_input_nest_shield(self, entities, level):
                 Fun.check_point_in_circle(self.weapon.range * 0.8, self.pos[0], self.pos[1], target[0], target[1]):
             self.input["Shoot"] = True
     self.input["Reload"] = self.weapon.ammo == 0
-    formation_target = nest_formation_manager(self, entities, level)
 
-    if formation_target:
-        self.input = {"Up": self.pos[1] > formation_target[1],
-                      "Right": self.pos[0] < formation_target[0],
-                      "Left": self.pos[0] > formation_target[0],
-                      "Down": self.pos[1] < formation_target[1], "Dash": False,
-                      "Shoot": self.input["Shoot"], "Alt fire": self.input["Alt fire"], "Reload": False,
-            "Interact": False, "Skill 1": False, "Skill 2": False,
-            "Order Hold": False, "Order Follow": False, "Order Attack": False, "Order Act Free": False}
+    nest_formation_input(self, entities, level)
 
     if not self.cutscene_mode:
         self.input["Alt fire"] = Fun.get_number_of_thing_in_a_damn_circle(
@@ -3179,6 +3012,7 @@ def enemy_input_nest_shield(self, entities, level):
     return target, target_angle
 
 
+# TODO: Update
 def enemy_input_nest_commander(self, entities,  level):
     # Input functions are the IA for an enemy
     # better targeting system
@@ -3226,13 +3060,7 @@ def enemy_input_nest_commander(self, entities,  level):
             "Order Hold": False, "Order Follow": False, "Order Attack": False, "Order Act Free": False}
 
     # Handles formations
-    formation_target = nest_formation_manager(self, entities,  level)
-    if formation_target:
-        self.input = {"Up": self.pos[1] > formation_target[1], "Right": self.pos[0] < formation_target[0],
-                      "Left": self.pos[0] > formation_target[0], "Down": self.pos[1] < formation_target[1],
-                       "Dash": False, "Shoot": self.input["Shoot"], "Alt fire": self.input["Alt fire"], "Reload": False,
-            "Interact": False, "Skill 1": False, "Skill 2": False,
-            "Order Hold": False, "Order Follow": False, "Order Attack": False, "Order Act Free": False}
+    nest_formation_input(self, entities, level)
 
     if not self.cutscene_mode:
         if dodging(self, entities, "bullets", search_range=32, bullet_minimum=1, random_chance=(3, 0),
@@ -3242,11 +3070,10 @@ def enemy_input_nest_commander(self, entities,  level):
 
     # Stunned status manager
     Fun.stunned_manager(self)
-
-
     return target, target_angle
 
 
+# TODO: Update
 def enemy_input_nest_cloaker(self, entities,  level):
     # Input functions are the IA for an enemy
     # better targeting system
@@ -3262,6 +3089,7 @@ def enemy_input_nest_cloaker(self, entities,  level):
         target = [original_target[0], original_target[1]]
 
         og_dist = Fun.distance_between(original_target, self.pos)
+
         range_target = og_dist > self.weapon.range * 0.65
         if range_target:
             self.input["Right"] = self.pos[0] < target[0]
@@ -3281,16 +3109,8 @@ def enemy_input_nest_cloaker(self, entities,  level):
         if og_dist <= self.weapon.range:
             self.input["Shoot"] = True
     self.input["Reload"] = self.weapon.ammo == 0
-    # formation_target = nest_formation_manager(self, entities,  level)
 
-    for e in entities["entities"]:
-        if e.team != self.team: continue
-        if 0 < Fun.distance_between(e.pos, self.pos) < 32:
-            self.input["Right"] = self.pos[0] > e.pos[0]
-            self.input["Left"] = self.pos[0] < e.pos[0]
-            self.input["Down"] = self.pos[1] > e.pos[1]
-            self.input["Up"] = self.pos[1] < e.pos[1]
-            break
+    entity_spread_apart(self, entities, 32)
 
     if not self.cutscene_mode:
         if dodging(self, entities, "bullets", search_range=32, bullet_minimum=1, random_chance=(3, 0),
@@ -3299,7 +3119,6 @@ def enemy_input_nest_cloaker(self, entities,  level):
                 entities["particles"].append(Particles.Smoke(Fun.random_point_in_circle(self.pos, 16)))
     # Stunned status manager
     Fun.stunned_manager(self)
-
 
     # The cloaker is invisible when you don't look at it
     hide = True
@@ -3327,6 +3146,7 @@ def enemy_input_nest_cloaker(self, entities,  level):
     return target, target_angle
 
 
+# TODO: Update
 def enemy_input_nest_cloaker_sniper(self, entities,  level):
     # Input functions are the IA for an enemy
     # better targeting system
@@ -3386,7 +3206,6 @@ def enemy_input_nest_cloaker_sniper(self, entities,  level):
     # Stunned status manager
     Fun.stunned_manager(self)
 
-
     # The cloaker is invisible when you don't look at it
     hide = True
     for p in entities["entities"]:
@@ -3413,6 +3232,7 @@ def enemy_input_nest_cloaker_sniper(self, entities,  level):
     return target, target_angle
 
 
+# TODO: Update
 def enemy_input_nest_flamer(self, entities,  level):
     # Input functions are the IA for an enemy
     # better targeting system
@@ -3453,16 +3273,8 @@ def enemy_input_nest_flamer(self, entities,  level):
         #     round(self.weapon.max_ammo * 0.25), round(self.weapon.max_ammo * 0.75)
         # ]
     self.input["Reload"] = self.weapon.ammo == 0
-    formation_target = nest_formation_manager(self, entities,  level)
 
-    if formation_target:
-        self.input = {"Up": self.pos[1] > formation_target[1], "Right": self.pos[0] < formation_target[0],
-                      "Left": self.pos[0] > formation_target[0], "Down": self.pos[1] < formation_target[1],
-                      "Dash": False,
-                      "Shoot": self.input["Shoot"],
-                      "Alt fire": self.input["Alt fire"], "Reload": False,
-            "Interact": False, "Skill 1": False, "Skill 2": False,
-            "Order Hold": False, "Order Follow": False, "Order Attack": False, "Order Act Free": False}
+    nest_formation_input(self, entities, level)
 
     if not self.cutscene_mode:
         if dodging(self, entities, "bullets", search_range=32, bullet_minimum=1, random_chance=(3, 0),
@@ -3471,11 +3283,10 @@ def enemy_input_nest_flamer(self, entities,  level):
                 entities["particles"].append(Particles.Smoke(Fun.random_point_in_circle(self.pos, 16)))
     # Stunned status manager
     Fun.stunned_manager(self)
-
-
     return target, target_angle
 
 
+# TODO: Update
 def enemy_input_nest_demolisher(self, entities,  level):
     # Input functions are the IA for an enemy
     # better targeting system
@@ -3516,16 +3327,8 @@ def enemy_input_nest_demolisher(self, entities,  level):
             round(self.weapon.max_ammo * 0.25), round(self.weapon.max_ammo * 0.75)
         ]
     self.input["Reload"] = self.weapon.ammo == 0
-    formation_target = nest_formation_manager(self, entities,  level)
 
-    if formation_target:
-        self.input = {"Up": self.pos[1] > formation_target[1], "Right": self.pos[0] < formation_target[0],
-                      "Left": self.pos[0] > formation_target[0], "Down": self.pos[1] < formation_target[1],
-                      "Dash": False,
-                      "Shoot": self.input["Shoot"],
-                      "Alt fire": self.input["Alt fire"], "Reload": False,
-            "Interact": False, "Skill 1": False, "Skill 2": False,
-            "Order Hold": False, "Order Follow": False, "Order Attack": False, "Order Act Free": False}
+    nest_formation_input(self, entities, level)
 
     if not self.cutscene_mode:
         if dodging(self, entities, "bullets", search_range=32, bullet_minimum=1, random_chance=(3, 0),
@@ -3539,6 +3342,7 @@ def enemy_input_nest_demolisher(self, entities,  level):
     return target, target_angle
 
 
+# TODO: Update
 def enemy_input_nest_bunker(self, entities,  level):
     # Input functions are the IA for an enemy
     # better targeting system
@@ -3546,19 +3350,8 @@ def enemy_input_nest_bunker(self, entities,  level):
     original_target = target
 
     self.input = Fun.get_default_inputs()
-    # valid_enemies = {"enemies": []}
-    #     if self.pos != valid_enemy.pos:
-    #         valid_enemies["enemies"].append(valid_enemy)
-    # buff_target = Fun.find_closest_in_circle(self, valid_enemies, self.targeting_range, "enemies")
-    buff_target = []
-    for e in entities["entities"]:
-        if e.team != self.team: continue
-        if 0 < Fun.distance_between(e.pos, self.pos) < 32:
-            self.input["Right"] = self.pos[0] > e.pos[0]
-            self.input["Left"] = self.pos[0] < e.pos[0]
-            self.input["Down"] = self.pos[1] > e.pos[1]
-            self.input["Up"] = self.pos[1] < e.pos[1]
-            break
+
+    entity_spread_apart(self, entities, 32)
     if target:
         self.angle = Fun.angle_between(target, self.pos)
         # modify position of target for some ia types
@@ -3595,44 +3388,15 @@ def enemy_input_nest_bunker(self, entities,  level):
         #     round(self.weapon.max_ammo * 0.25), round(self.weapon.max_ammo * 0.75)
         # ]
     self.input["Reload"] = self.weapon.ammo == 0
-    # elif buff_target:
-        # buff_target_angle = Fun.angle_between(buff_target, self.pos)
-        # original_buff_target = [buff_target[0], buff_target[1]]
-        # modify position of target for some ia types
 
-        # self.input["Right"] = self.pos[0] < buff_target[0]
-        # self.input["Left"] = self.pos[0] > buff_target[0]
-        # self.input["Down"] = self.pos[1] < buff_target[1]
-        # self.input["Up"] = self.pos[1] > buff_target[1]
-
-    # formation_target = nest_formation_manager(self, entities,  level)
-
-    # if formation_target:
-    #     self.input = {"Up": self.pos[1] > formation_target[1], "Right": self.pos[0] < formation_target[0],
-    #                   "Left": self.pos[0] > formation_target[0], "Down": self.pos[1] < formation_target[1],
-    #                   "Dash": False,
-    #                   "Shoot": self.input["Shoot"],
-    #                   "Alt fire": self.input["Alt fire"]}
-
-    # if not self.cutscene_mode:
-    #     if dodging(self, entities, bullets, search_range=32, bullet_minimum=1, random_chance=(3, 0),
-    #                dodge_angles=(60, 120), dodge_vel=10, invulnerability_time=5):
-    #         for x in range(3):
-    #             entities["particles"].append(Particles.Smoke(Fun.random_point_in_circle(self.pos, 16)))
     # Stunned status manager
     Fun.stunned_manager(self)
-
-
     return target, target_angle
 
 
 # Anomalies
 def enemy_input_monolith(self, entities,  level):
-    # Input functions are the IA for an enemy
-    # better targeting system
     target, original_target, target_angle = entity_target_detection(self, entities, level)
-    original_target = target
-
     self.input = Fun.get_default_inputs()
 
     if target:
@@ -3642,10 +3406,7 @@ def enemy_input_monolith(self, entities,  level):
         self.input["Shoot"] = True
         self.status["Stealth"] = 2
 
-    # Stunned status manager
-    # Fun.stunned_manager(self)
     self.status["Stunned"] = 0
-
 
     return target, target_angle
 
@@ -3654,8 +3415,6 @@ def enemy_input_eye(self, entities, level):
     # Input functions are the IA for an enemy
     # better targeting system
     target, original_target, target_angle = entity_target_detection(self, entities, level)
-    original_target = target
-
     self.input = Fun.get_default_inputs()
 
     if target:
@@ -3666,19 +3425,13 @@ def enemy_input_eye(self, entities, level):
         self.weapon.bullet_info = [2 + 3 * random.random(), 450, 5, 10, {"Colour": Fun.LIGHT_RED, "Bullet mod":
             [{"angle": "Player", "Interval": [25, 40, 70][random.randint(0, 2)]}]}]
 
-    # Stunned status manager
-    # Fun.stunned_manager(self)
     self.status["Stunned"] = 0
-
 
     return target, target_angle
 
 
 def enemy_input_void(self, entities, level):
-    # Input functions are the IA for an enemy
-    # better targeting system
     target, original_target, target_angle = entity_target_detection(self, entities, level)
-    original_target = target
 
     self.input = Fun.get_default_inputs()
 
@@ -3688,10 +3441,7 @@ def enemy_input_void(self, entities, level):
         # Check if something is in range
         self.input["Shoot"] = self.no_shoot_state == 0 and random.random() < 0.05
 
-    # Stunned status manager
-    # Fun.stunned_manager(self)
     self.status["Stunned"] = 0
-
 
     colours = [Fun.DARK_GREEN, Fun.DARK_GREEN_ALT, Fun.DARK, Fun.DARKER_GREEN]
     for x in range(2):
@@ -3705,36 +3455,23 @@ def enemy_input_slime(self, entities,level):
     # Input functions are the IA for an enemy
     # better targeting system
     target, original_target, target_angle = entity_target_detection(self, entities, level)
-    original_target = target
-
     self.input = Fun.get_default_inputs()
 
     if target:
-        self.angle = Fun.angle_between(target, self.pos)
-        # Make it move toward the player
-        self.input["Right"] = self.pos[0] < target[0]
-        self.input["Left"] = self.pos[0] > target[0]
-        self.input["Down"] = self.pos[1] < target[1]
-        self.input["Up"] = self.pos[1] > target[1]
+        aim_target, move_target, og_dist = entity_get_aim_move_target(self, target)
+        true_target = universal_pathfinding(self, level, move_target)
+        if not true_target:
+            self.angle = Fun.angle_between(target, self.pos)
+        entity_move_toward_point(self, target, 0)
 
-
-    for e in entities["entities"]:
-        if e.team != self.team: continue
-        if 0 < Fun.distance_between(e.pos, self.pos) < 32:
-            self.input["Right"] = self.pos[0] > e.pos[0]
-            self.input["Left"] = self.pos[0] < e.pos[0]
-            self.input["Down"] = self.pos[1] > e.pos[1]
-            self.input["Up"] = self.pos[1] < e.pos[1]
-            break
+    entity_spread_apart(self, entities, 32)
 
     for collision in entities["entities"]:
         if collision.team == self.team: continue
         if self.collision_box.colliderect(collision.collision_box):
             Fun.damage_calculation(collision, round(12 * self.thiccness / 40), "Melee")
-    # Stunned status manager
-    # Fun.stunned_manager(self)
-    self.status["Stunned"] = 0
 
+    self.status["Stunned"] = 0
 
     return target, target_angle
 
@@ -3782,6 +3519,36 @@ def enemy_input_snake(self, entities, level):
     Fun.stunned_manager(self)
 
 
+    return target, target_angle
+
+
+def enemy_input_moped(self, entities, level):
+    # Input functions are the IA for an enemy
+    # better targeting system
+    target, target_angle, wall_in = entity_target_detection(self, entities, level)
+
+    self.input = Fun.get_default_inputs()
+    if target:
+        aim_target = self.target.pos.copy()
+        move_target = target.copy()
+        self.mouse_pos = aim_target.copy()
+        self.angle = Fun.angle_between(aim_target, self.pos)
+        og_dist = Fun.distance_between(target, self.pos)
+
+        entity_shoot_no_startup_lag(self, og_dist, self.weapon.range * self.ai_weapon_range_mod)
+
+        # buggy_move_away_point(self, move_target, 2)
+        # self.input["Up"] = True
+        # fortress_move_toward_point(self, move_target, self.weapon.range * self.ai_weapon_range_mod)
+        buggy_move_toward_point(self, self.target.pos, 32)
+        self.free_var["Target Move angle"] = self.angle
+        self.input["Reload"] = self.weapon.ammo == 0 and self.weapon.ammo_pool > 0
+
+    elif self.weapon.ammo < self.weapon.max_ammo and self.weapon.ammo_pool > 0:
+            self.input["Reload"] = True
+
+    # Stunned status manager
+    Fun.stunned_manager(self)
     return target, target_angle
 
 

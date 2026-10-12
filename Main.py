@@ -19,7 +19,6 @@ CLOCK = pg.time.Clock()
 pg.mixer.set_num_channels(32)
 
 
-
 # Moved that here so that you don't start on a black screen
 def pygame_splash_screen(WIN, CLOCK):
     width, height = 630, 450
@@ -221,16 +220,16 @@ def main_game(party_info):
 
                 # Manage input functions, default is AI
                 if input_method == "Keyboard & Mouse":
-                    info["func input"] = Entity.player_input_keyboard
+                    info["func input"] = Entity_Input_Funcs.player_input_keyboard
                     info["free var"].update({"Outline": Fun.PLAYER_OUTLINE_COLOUR[player_count]})
 
                     player_count += 1
                 elif input_method in ["Controller 1", "Controller 2", "Controller 3", "Controller 4"]:
                     info["func input"] = {
-                        "Controller 1": Entity.player_input_controller_1,
-                        "Controller 2": Entity.player_input_controller_2,
-                        "Controller 3": Entity.player_input_controller_3,
-                        "Controller 4": Entity.player_input_controller_4
+                        "Controller 1": Entity_Input_Funcs.player_input_controller_1,
+                        "Controller 2": Entity_Input_Funcs.player_input_controller_2,
+                        "Controller 3": Entity_Input_Funcs.player_input_controller_3,
+                        "Controller 4": Entity_Input_Funcs.player_input_controller_4
                     }[input_method]
                     info["Input mode"] = "Controller"
                     info["free var"].update({"Outline": Fun.PLAYER_OUTLINE_COLOUR[player_count]})

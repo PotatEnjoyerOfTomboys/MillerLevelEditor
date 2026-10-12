@@ -30,8 +30,9 @@
                                           1
                                     ],
                                     "Angle": "100",
-                                    "ID": "CommieBot.Rifle",
-                                    "Team": "Enemies"
+                                    "ID": "Infantry",
+                                    "Team": "Enemies",
+                                    "Number of copies": 2.0
                               },
                               {
                                     "Name": "Chopped Dick",
@@ -44,8 +45,9 @@
                                           1
                                     ],
                                     "Angle": 90.0,
-                                    "ID": "CommieBot.Hammer",
-                                    "Team": "Enemies"
+                                    "ID": "Gang Biker",
+                                    "Team": "Enemies",
+                                    "Number of copies": 1
                               },
                               {
                                     "Name": "Buttocks",
@@ -72,7 +74,8 @@
                                     ],
                                     "Angle": 0,
                                     "ID": "Cover Large",
-                                    "Team": "Enemies"
+                                    "Team": "Enemies",
+                                    "Number of copies": 1
                               },
                               {
                                     "Name": "Cover Moving",
@@ -86,7 +89,8 @@
                                     ],
                                     "Angle": 0,
                                     "ID": "Cover Moving",
-                                    "Team": "Enemies"
+                                    "Team": "Enemies",
+                                    "Number of copies": 1
                               },
                               {
                                     "Name": "Delete",
@@ -99,8 +103,9 @@
                                           1
                                     ],
                                     "Angle": 160.0,
-                                    "ID": "CommieBot.Molotov",
-                                    "Team": "Enemies"
+                                    "ID": "Infantry",
+                                    "Team": "Enemies",
+                                    "Number of copies": 2.0
                               },
                               {
                                     "Name": "Gang Wars",
@@ -114,13 +119,8 @@
                                     ],
                                     "Angle": 90.0,
                                     "ID": "Bulwark",
-                                    "Team": "TardWrangler"
-                              },
-                              {
-                                    "Name": "Change character",
-                                    "Type": "character",
-                                    "Character": "Curtis",
-                                    "Carry over health": true
+                                    "Team": "Enemies",
+                                    "Number of copies": 1
                               }
                         ],
                         "": ""
@@ -156,7 +156,8 @@
                                     ],
                                     "Angle": 0,
                                     "ID": "Smoke generator",
-                                    "Team": "Enemies"
+                                    "Team": "Enemies",
+                                    "Number of copies": 1
                               },
                               {
                                     "Name": "Barrel Red",
@@ -170,7 +171,8 @@
                                     ],
                                     "Angle": 0,
                                     "ID": "Big ol Red Barrel",
-                                    "Team": "Enemies"
+                                    "Team": "Enemies",
+                                    "Number of copies": 1
                               },
                               {
                                     "Name": "Barrel Oil",
@@ -184,7 +186,8 @@
                                     ],
                                     "Angle": 0,
                                     "ID": "Oil Barrel",
-                                    "Team": "Enemies"
+                                    "Team": "Enemies",
+                                    "Number of copies": 1
                               },
                               {
                                     "Name": "Shrapnel Bom",
@@ -198,7 +201,8 @@
                                     ],
                                     "Angle": 0,
                                     "ID": "Shrapnel Bomb",
-                                    "Team": "Enemies"
+                                    "Team": "Enemies",
+                                    "Number of copies": 1
                               },
                               {
                                     "Name": "Boom",
@@ -254,6 +258,6 @@
       },
       "name": "Ass Cheeks",
       "Characters": [
-            "Curtis"
+            "Agent Cardinal"
       ]
 }
