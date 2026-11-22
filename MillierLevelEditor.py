@@ -10,18 +10,25 @@ import Main
 
 # To add:
 #   Weather effects
+#   Add Event action to load a new level and play an eye catch
+#   Add Event action for checkpoints
+#   Custom code stuff
 
-#   Sprint Dash Roll movement system
+#   Sprint Dash Roll movement system        Working on it   Might remove the stamina aspect and give people different parts of it
 
-#   Add NEST Agent character
+#   Add NEST Agent character        Finish skill 2
 #   Add Detective Agency character
 
 #   Shaders? https://pygame-shaders.readthedocs.io/en/latest/surface_shaders.html
+#           https://www.youtube.com/watch?v=BzsCqL9l8SM
 #   Support for animated tiles
-
-#   Update old enemies
 #   More props
 
+#   Implement new enemies
+#       Goon faction        Grunt, Shotgunner, Sniper, Bruiser, Spaghetti Chef, Pizza Cook, Boss's Daughter, Boss
+#       Law enforcement     Rifleman, Shotgunner, Lasso (slows down basics), Sherif (Buffs), Paddy Wagon (spawns rifleman)
+#           CommieBot.Tank
+#           Gang Heavy
 #   Import and update old bosses
 #     Pirate    5
 #       Mary the Kid            .                           Improve wall bounce mechanic
@@ -35,7 +42,7 @@ import Main
 #       Crow                    .                           No major changes
 #       Sparrow                 .                           No major changes
 #       Heron                   .                           No major changes
-#       Vulture                 .                           No major changes
+#       Vulture                 .                           New attacks
 #     Anomaly   12
 #       Betelgeuse              .                           No major changes
 #     Tarot     29
@@ -49,13 +56,13 @@ import Main
 #       Justice                 Bounty Hunters and Mercs    Better patterns? Some bullets home while others are redirected 
 #       Wheel of Fortune        Misc                        No major changes
 #       Strength & Hanged Man   Gang                        Better visuals
-#       ? (Death)                                           No major changes
+#       ? (Death)                                           No major changes?
 #       Temperance              Bounty Hunters and Mercs    No major changes
 #       Devil                   Bounty Hunters and Mercs    She can move now, more patterns
 #       Tower                   Misc                        Switches between weapons as he loses health, more patterns
 #       Star, Moon and Sun      Gang                        Maybe change Star's attack and changes to AI?
 #       Judgement               Misc                        No major changes
-#       The World               Zither                      No major changes
+#       The World               Zither                      Refine
 
 
 EMPTY_MAP_DATA = {"map": [],
@@ -86,27 +93,31 @@ DEFAULT_EVENT_ACTION_INFO = {
     "cutscene": {},  # AAAAAAAAAAAAAAAAAAAA
     "radio": {},  # AAAAAAAAAAAAAAAAAAAA
     "teleport": {"Pos": [0, 0, 1, 1]},
+    "load": {"Level": "~", "Eyecatch 1": "ASUM", "Eyecatch 2cx": "ASUM"},
     "character": {"Character": "Curtis", "Carry over health": True},
     "free var": {"Target free var": "", "Operation": "Addition", "Value": 0},
 }
+EYECATCH_LIST = [
+    "ASUM", "CFCRR"
+]
 ALL_EVENT_ACTION_TYPE = [t for t in DEFAULT_EVENT_ACTION_INFO]
 
 PLAYABLE_CHARACTERS = [
-    "Curtis",           # Advanced Movement. Gunsmith.
+    "Curtis",           # Advanced Movement (Best dash. Rest  is good). Gunsmith.
     "Lawrence",         # Advanced Movement. Get a new mechanic with oil for his fire attacks.
                         # Fire attacks uses oil. Hitting with a gun attack restores oil. If a fire attacked used oil. It will be stronger
     "Mark",             #
-    "Vivianne",         # Advanced Movement. Gunsmith.
+    "Vivianne",         # Advanced Movement (Good rolls but that's it). Gunsmith.
 
     "Lord",             #
-    "Emperor",          # Advanced Movement.
+    "Emperor",          # Advanced Movement (Great super roll, good sprint, rest is mid.).
     "Wizard",           #
     "Sovereign",        #
-    "Duke",             # Advanced Movement.
+    "Duke",             # Advanced Movement (Doesn't need to worry about stamina, but most options are mid).
     "Jester",           #
     "Condor",           #
 
-    "Agent Cardinal",   # Advanced Movement.
+    "Agent Cardinal",   # Advanced Movement (Same as Curtis, expect for dash).
     # Cloak & night vision mode.
     # For a time, becomes invisible, gains night vision but become restricted to a knife. Knife deals lots of damage
 
@@ -122,25 +133,29 @@ PLAYABLE_CHARACTERS = [
 ]
 
 
+def get_valid_level_directories():
+    valid_level_directories = []
+
+    for x in os.listdir("Levels"):
+        level_path = os.path.join("Levels", x)
+        if not os.path.isfile(level_path):
+            if "Level_data.json" in os.listdir(level_path):
+                valid_level_directories.append(x)
+    return valid_level_directories
+
+
 def main(WIN, CLOCK):
     # ssssEntity.fake_render(["Gang Biker"], WIN, CLOCK)
     # pg.display.message_box(title="Get Hacked Bitch!", message="We fucked yo hard drive")
     while True:
         # Get a list of available level directories
-        valid_level_directories = []
-
-        for x in os.listdir("Levels"):
-            level_path = os.path.join("Levels", x)
-            if not os.path.isfile(level_path):
-                if "Level_data.json" in os.listdir(level_path):
-                    valid_level_directories.append(x)
-
+        valid_level_directories =  get_valid_level_directories()
         # Let user choose a directory or make a new one
-        level = {"map data": EMPTY_MAP_DATA.copy(),
-                 "event data": EMPTY_EVENT_DATA.copy()
-                 }
+
+        level = {"map data": EMPTY_MAP_DATA.copy(), "event data": EMPTY_EVENT_DATA.copy()}
 
         options = []
+
         for po in valid_level_directories:
             options.append({"Name": po, "Value": po, "On select": "Return", "Render func": "Text only"})
         options.append({"Name": "New", "Value": ["This new"], "On select": "Return", "Render func": "Text only"})
@@ -1135,6 +1150,8 @@ def event_editor_settings_func(WIN, CLOCK, map_data, event_data, event_being_mod
                             "cutscene": {},
                             "radio": {},
                             "teleport": {"Pos": [0, 0, 1, 1]},
+
+                            "load": {"Level": get_valid_level_directories(), "Eyecatch 1": EYECATCH_LIST, "Eyecatch 2cx": EYECATCH_LIST},
                             "character": {"Character": PLAYABLE_CHARACTERS, "Carry over health": True},
                             "free var": {"Target free var": [fv for fv in event_data["free var"]], "Operation": ["Addition", "Subtraction", "Multiplication", "Division", "Set"], "Value": 0}
                         }

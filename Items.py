@@ -689,7 +689,9 @@ def item_cover_moving(self, entities, level):
 
     if self.free_var["Health"] == 0:
         self.life_time = 0
-    self.animation_counter = self.free_var["Health"] // (self.free_var["Max"] // 4)
+   #  self.animation_counter = self.free_var["Health"] // (self.free_var["Max"] // 4)
+
+    self.animation_counter = (self.free_var["Health"] // self.free_var["Max"]) // 4 % 4
     if self.animation_counter > 3:
         self.animation_counter = 3
 

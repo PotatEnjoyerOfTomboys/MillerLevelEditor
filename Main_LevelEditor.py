@@ -19,7 +19,6 @@ import Render
 import Entity
 import Main_Loop
 
-int(0.)
 CLOCK = pg.time.Clock()
 pg.mixer.set_num_channels(32)
 

@@ -244,8 +244,10 @@
                               },
                               {
                                     "Name": "Winning",
-                                    "Type": "level end",
-                                    "End level state": "win"
+                                    "Type": "load",
+                                    "Level": "Demo 1 - Nest Hideout",
+                                    "Eyecatch 1": "ASUM",
+                                    "Eyecatch 2cx": "ASUM"
                               }
                         ],
                         "": ""
@@ -258,6 +260,9 @@
       },
       "name": "Ass Cheeks",
       "Characters": [
+            "Curtis",
+            "Lord",
+            "Condor",
             "Agent Cardinal"
       ]
 }

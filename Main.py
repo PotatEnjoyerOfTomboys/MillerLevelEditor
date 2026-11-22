@@ -11,7 +11,7 @@ pg.joystick.init()
 
 WIN_WIDTH, WIN_HEIGHT = 630, 450
 ORIGINAL_WIDTH, ORIGINAL_HEIGHT = WIN_WIDTH, WIN_HEIGHT
-WIN = pg.display.set_mode((WIN_WIDTH, WIN_HEIGHT), pg.RESIZABLE, pg.OPENGL | pg.DOUBLEBUF)
+WIN = pg.display.set_mode((WIN_WIDTH, WIN_HEIGHT), pg.RESIZABLE)
 pg.display.set_icon(pg.image.load(os.path.join("Sprites/Icon.ico")))
 pg.display.set_caption("THR-1's Assault")
 

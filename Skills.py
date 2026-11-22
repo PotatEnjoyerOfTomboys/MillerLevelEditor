@@ -5,6 +5,7 @@ import pygame as pg
 
 import Bullets
 import Entity
+import Entity_Draw_Funcs
 import Fun
 import Items
 import Particles
@@ -531,7 +532,7 @@ def corrine_cardboard_box(self, skill, entities, level):
     # Puts Corrine in a state where she can't move but her stealth mod is increased.
     if skill.first_active_frame:
         skill.free_var["Draw angle"] = self.aim_angle
-        self.func_draw = Entity.cardboard_box_draw
+        self.func_draw = Entity_Draw_Funcs.cardboard_box_draw
     #   Stun Kick can move her around.
     self.shot_allowed = False
     if self.dash_cooldown <= 0:
@@ -544,9 +545,9 @@ def corrine_cardboard_box(self, skill, entities, level):
             self.status["No damage"] = 2
 
     if skill.last_active_frame:
-        self.func_draw = Entity.player_draw
+        self.func_draw = Entity_Draw_Funcs.player_draw
         if self.team != "Players":
-            self.func_draw = Entity.enemy_draw_basic
+            self.func_draw = Entity_Draw_Funcs.enemy_draw_basic
 
 
 def corrine_detect_targets(self, skill, entities, level):

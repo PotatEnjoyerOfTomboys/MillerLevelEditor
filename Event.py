@@ -359,6 +359,7 @@ def generic_event(self, entities, bullets, level, time_passed, screen, CLOCK):
                 "cutscene": generic_event_cutscene,
                 "radio": generic_event_radio,
                 "teleport": generic_event_teleport,
+                "load": generic_event_load,
                 "character": generic_event_change_character,
                 "free var": generic_event_free_var
              }[a["Type"]](self, entities, bullets, level, time_passed, a)
@@ -490,6 +491,108 @@ def generic_event_free_var(self, entities, bullets, level, time_passed, info):
         level["free var"][info["Target free var"]] /= info["Value"]
     if info["Operation"] == "Set":
         level["free var"][info["Target free var"]] = info["Value"]
+
+
+def generic_event_load(self, entities, bullets, level, time_passed, info):
+    # info
+    #   level       which level to load
+    #   eyecatch 1  first eyecatch to play  (Only is the name, must add .png and path)
+    #   eyecatch 2  second eyecatch to play
+    new_level = load_level(info["Level"])
+
+
+    player_character = entities["entities"][0]
+
+    # Set up the rests
+    entities["entities"], entities["items"], entities["sounds"], entities["bullets"] = [player_character], [], [], []
+    entities["background particles"],entities["particles"], entities["UI particles"],entities["screen shake"] = [], [], [], []
+    entities["cutscene stage"], entities["shadows"], entities["scrolling"], entities["scrolling target"] = 0, [], [], []
+
+    scrolling_target_entities = [player_character]  # Use that
+
+    # Don't need to reload the party
+    # Load up the party
+    # player_count = 0
+    #
+    #     out_party = [[player_character, "Keyboard & Mouse"]]
+    #     for count, player_to_add in enumerate(out_party):
+    #         name = player_to_add[0]
+    #         input_method = player_to_add[1]
+    #         info = Entity.player_repertory[name]
+    #
+    #         # Add default outline
+    #         info["free var"].update({"Outline": Fun.OUTLINE_TEAL})
+    #
+    #         # Manage input functions, default is AI
+    #         if input_method == "Keyboard & Mouse":
+    #             info["func input"] = Entity_Input_Funcs.player_input_keyboard
+    #             info["free var"].update({"Outline": Fun.PLAYER_OUTLINE_COLOUR[player_count]})
+    #
+    #             player_count += 1
+    #         elif input_method in ["Controller 1", "Controller 2", "Controller 3", "Controller 4"]:
+    #             info["func input"] = {
+    #                 "Controller 1": Entity_Input_Funcs.player_input_controller_1,
+    #                 "Controller 2": Entity_Input_Funcs.player_input_controller_2,
+    #                 "Controller 3": Entity_Input_Funcs.player_input_controller_3,
+    #                 "Controller 4": Entity_Input_Funcs.player_input_controller_4
+    #             }[input_method]
+    #             info["Input mode"] = "Controller"
+    #             info["free var"].update({"Outline": Fun.PLAYER_OUTLINE_COLOUR[player_count]})
+    #             player_count += 1
+    #
+    #         # Add players in
+    #         entities["entities"].append(Entity.Entity(info))
+    #         last_added_entity = entities["entities"][-1]
+    #         if input_method != "COM":
+    #             scrolling_target_entities.append(last_added_entity)
+    #             last_added_entity.is_player = True
+    #
+    #         # Handle spawn points
+    #         if count > 0:
+    #             mc = entities["entities"][0]
+    #             last_added_entity.pos = Fun.random_point_in_circle(mc.pos, 16)
+    #             last_added_entity.free_var["Ally waypoint"] = mc
+    #         else:
+    #             last_added_entity.pos = level["spawn point"].copy()
+    #
+    #         # Reset the name to the correct one
+    #         last_added_entity.name = name
+
+    # Load events
+    new_events = []
+    for events_to_load in new_level["events"]:
+        event_name = events_to_load[0]
+        event_trigger = get_event_trigger(events_to_load[1])
+        # event_functions = Event.get_event_function(events_to_load[3])
+        event_functions = []
+        for funcs in events_to_load[3]:
+            event_functions.append(getattr(sys.modules[__name__], funcs))
+            # "Name", Event.relevant trigger, single use, Event.effects
+        free_var = {}
+        if len(events_to_load) == 5:
+            free_var = events_to_load[4]
+
+        new_events.append(
+            MissionEvent(event_name, event_trigger, events_to_load[2], event_functions,
+                               free_var=free_var))
+
+    player_character.pos = new_level["spawn point"].copy()
+    level["name"] = new_level["name"]
+    level["map"] = new_level["map"]
+    level["door state"] = new_level["door state"]
+    level["events"] = new_events
+    level["level_finished"] = new_level["level_finished"]
+    level["pathfinding"] = new_level["pathfinding"]
+    level["width height"] = new_level["width height"]
+    level["rendering"] = new_level["rendering"]
+    level["spawn point"] = new_level["spawn point"]
+    level["characters"] = new_level["characters"]   # Check for changes and use the change character action if needed
+    level["free var"] = new_level["free var"]
+
+    # Scrolling
+    scrolling_target = Fun.find_scrolling_target(scrolling_target_entities)
+    scrolling = scrolling_target
+    entities["scrolling"] = scrolling
 
 
 # |Mission events|------------------------------------------------------------------------------------------------------
@@ -1063,3 +1166,4 @@ def load_level(level_to_load):
 
 import Entity
 from Entity import ENEMY_NO_OWNER, enemy_repertory
+import Entity_Input_Funcs

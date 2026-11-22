@@ -3,9 +3,10 @@ import pygame as pg
 import Render
 import Event
 import Fun
+import Particles
+import copy
 
-
-
+import Items
 
 def main_loop(WIN, CLOCK, entities, level, party_info, scrolling, scrolling_target_entities, end_with_main_player=True):
     Fun.stop_music()
@@ -157,6 +158,10 @@ def main_loop_no_party(WIN, CLOCK, entities, level, scrolling, scrolling_target_
     mission_end_screen = True
     big_game_loop = True
 
+    current_level_name = level["name"]
+    checkpoint_active = False
+    checkpoint_entities, checkpoint_level_state, checkpoint_time = make_checkpoint(entities, level, time_passed)
+
     scrolling_mod = 1
     while gaming:
         # Get inputs
@@ -233,6 +238,12 @@ def main_loop_no_party(WIN, CLOCK, entities, level, scrolling, scrolling_target_
                 mission_event.act(entities, {}, level, time_passed, WIN, CLOCK)
         scrolling_target = level["scrolling target"]
 
+        # if entities["make checkpoint"]:
+        #     checkpoint_entities, checkpoint_level_state, checkpoint_time = make_checkpoint()
+        #     entities["make checkpoint"] = False
+        #     checkpoint_active = True
+
+
         # Scrolling target
         if entities["screen shake"]:
             screen_shake = entities["screen shake"]  # Duration, strength, direction, max duration
@@ -261,7 +272,7 @@ def main_loop_no_party(WIN, CLOCK, entities, level, scrolling, scrolling_target_
         pg.display.flip()
         # |Pause menu|------------------------------------------------------------------------------------------
         if Fun.SYSTEM_CONTROLS_INPUT["Pause"] or force_pause:
-            gaming = not Fun.settings_menu(WIN, CLOCK, also_pause=True)
+            gaming = not Fun.settings_menu(WIN, CLOCK, also_pause=True) # Add checkpoint option
             # Refresh controls in game
             for p in scrolling_target_entities:
                 p.control = Fun.get_from_json("Key binds.json", "Keyboard")
@@ -276,3 +287,50 @@ def main_loop_no_party(WIN, CLOCK, entities, level, scrolling, scrolling_target_
         CLOCK.tick(60)
     Fun.stop_music()
     return end_status, mission_end_screen, big_game_loop, time_passed
+
+
+# |Make checkpoint|-----------------------------------------------------------------------------------------------------
+def make_checkpoint(entities, level, time_passed):
+    entities["particles"].append(Particles.FloatingTextType2([entities["entities"][0].pos[0], entities["entities"][0].pos[1]],
+                                                       18, "CHECKPOINT", Fun.WHITE, 120))
+    # |Entity side of the checkpoint|-----------------------------------------------------------------------------------
+    player_checkpoint = entities["entities"][0]
+    weapon_1_checkpoint = player_checkpoint.weapon
+    # weapon_2_checkpoint = player_checkpoint.weapons[1 - player_checkpoint.switch_weapon]
+
+    checkpoint_entities_new = {
+        "players": [  # Store health, armour, pos, weapons data, skills of the player
+            player_checkpoint.health, player_checkpoint.armour, [player_checkpoint.pos[0], player_checkpoint.pos[1]],
+            [[weapon_1_checkpoint, weapon_1_checkpoint.ammo, weapon_1_checkpoint.ammo_pool]],
+            [player_checkpoint.skills[0].name, player_checkpoint.skills[1].name]
+        ], "items": [], "allies to add": [], "shadows": entities["shadows"],  # Straight up stores the shadows
+    }
+
+    # Get items saved
+    for find_items in entities["items"]:
+        if find_items.name in Items.item_repertory:
+            checkpoint_entities_new["items"].append([find_items.name, find_items.pos.copy()])
+
+    # |Level side of the checkpoint|------------------------------------------------------------------------------------
+    checkpoint_level_state_new = {
+        "name": level["name"], "map": [], "events": [], "level_finished": False,
+        # "draw func": level["draw func"],
+        "free var": copy.deepcopy(level["free var"])
+    }
+    if "inverted shadows" in level:
+        checkpoint_level_state_new.update({"inverted shadows": True})
+    # Map
+    for walls_to_copy in level["map"]:
+        checkpoint_level_state_new["map"].append(walls_to_copy.copy())
+    # Events
+    for unfinished_events in level["events"]:
+        if unfinished_events.status == 1:
+            checkpoint_level_state_new["events"].append(Event.MissionEvent(
+                unfinished_events.name,
+                {"rects": unfinished_events.trigger_rects, "Conditions": unfinished_events.trigger},
+                unfinished_events.single_use, unfinished_events.effect.copy(),
+                free_var=unfinished_events.free_var.copy()
+            ))
+
+    return checkpoint_entities_new, checkpoint_level_state_new, time_passed
+

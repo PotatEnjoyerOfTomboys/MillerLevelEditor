@@ -27,6 +27,16 @@ import sys
 #   M13, Raid on iron mine      .           Scrub Jay alt path
 #   M14, Goes in the desert     .
 
+# Vivianne Mode
+#   Alt versions of all of Curtis' levels. Just modified to make it playable by Vivianne and remove some alt events
+# Lawrence Mode
+# Agency Mode
+#   Episode 1,                  Learn about contraband. Finds someone involved.
+#   Episode 2,                  Agency looks for a stash to try and learn more about the contraband. Finds some mafia members dealing weapons to a gang
+#   Episode 3,                  Mafia ends up involving themselves. The Agency figures out that the portions of the government is helping
+#   Episode 4,                  Dealing with Mafia?
+#   Finale!                     Agency gets ready to raid the Mafia's estate.
+
 # Fun.py is not fun
 # Here is many functions that are used a lot in the other files
 
@@ -803,6 +813,10 @@ SPRITE_SAND_BUGGY_WHEEL = [
 
 # 15
 SPRITE_GANG_MOPED = get_sprite_stack_list(get_image('Sprites/Vehicles/Gang Moped.png'), 20)
+
+SPRITE_COMMIE_BOT_TANK_HULL = get_sprite_stack_list(get_image('Sprites/Vehicles/CommieBot.Tank - Hull.png'), 21)
+SPRITE_COMMIE_BOT_TANK_TURRET = get_sprite_stack_list(get_image('Sprites/Vehicles/CommieBot.Tank - Turret.png'), 21) # Need to fix it
+
 SPRITE_BULWARK = get_sprite_stack_list(get_image('Sprites/Vehicles/Bulwark.png'), 16)
 BULWARK_BASE = get_image('Sprites/Vehicles/Bulwarks.png')
 SPRITE_BULWARKS = [
@@ -6772,10 +6786,7 @@ def after_shooting_manager(self, current_weapon):
         self.aim_angle += random.uniform(-current_weapon.recoil, current_weapon.recoil)
 
 
-def movement_player(self, entities):
-    # Eventually I need to add alternatives to sliding
-    # Get the base movement speed
-    speed = self.speed
+def basic_movement(self, entities, speed):
     self.running = False
     self.walking = False
 
@@ -6820,6 +6831,13 @@ def movement_player(self, entities):
     elif self.cutscene_mode:
         # This makes entities use their walking animation during cutscenes
         self.walking = True
+    return dash_vel
+
+
+def movement_player(self, entities):
+    # Eventually I need to add alternatives to sliding
+    # Get the base movement speed
+    dash_vel = basic_movement(self, entities, self.speed)
 
     # Dash mechanic
     if self.dash_cooldown <= 0 and not self.standing_still and self.input["Dash"]:
@@ -6840,7 +6858,6 @@ def movement_player(self, entities):
         if self.status["No damage"] < self.dash_iframes:
             self.status["No damage"] += self.dash_iframes
     self.dash_cooldown -= 1
-    self.free_var.update({"BS COMS": []})
 
     #
 
@@ -6850,7 +6867,68 @@ def movement_player_advanced(self, entities, level):
     # Dash      Consumes a portion of the stamina bar. Bring player to full speed
     # Roll      Uses speed to
 
-    pass
+    allow_roll = self.roll_time <= 0
+
+    speed = self.speed
+    stamina_recovery = True
+    # Sprint
+    if self.input["Order Attack"] and self.stamina_recovery_time == 0 and allow_roll and self.stamina > 0:
+        speed = self.sprint_speed
+        stamina_recovery = False
+        self.stamina -= self.sprint_cost
+    if self.stamina_recovery_time > 0:
+        self.stamina_recovery_time -= 1
+
+    if stamina_recovery:
+        if self.stamina < self.max_stamina:
+            self.stamina += [self.stamina_regen_rate, self.still_regen][int(self.standing_still)]
+
+    if allow_roll:
+        dash_vel = basic_movement(self, entities, speed)
+
+    allow_dash = self.stamina - self.max_stamina * self.dash_cost
+    # Dash stuff
+    #   reuse basic dash stats
+    if self.dash_cooldown <= 0 and not self.standing_still and self.input["Dash"] and allow_roll and self.stamina >= 0 and self.stamina_recovery_time == 0:
+        self.stamina = allow_dash
+        if self.stamina <= 0:
+            self.stamina = 0
+            self.stamina_recovery_time = self.stamina_recovery_timer
+        # Handle dash here
+        play_sound("Player dash", modified_volume=0.25)
+        dash_angle = angle_between(dash_vel, [0, 0])
+        self.dash_cooldown = self.dash_charge_time
+        if self.status["Dash recovery up"] > 0:
+            self.dash_cooldown //= 2
+        self.vel = move_with_vel_angle(self.vel, self.dash_speed/self.friction, dash_angle)
+        for x in range(4):
+            angle = dash_angle - 15 - 3.25 * 2 + x * 7.5 * 2
+            entities["particles"].append(
+                Particles.RandomParticle2(
+                move_with_vel_angle([self.pos[0], self.pos[1]], -4, angle),
+                    WHITE, 1.5 + random.uniform(0, 2), 24, angle))
+
+        if self.status["No damage"] < self.dash_iframes:
+            self.status["No damage"] += self.dash_iframes
+    self.dash_cooldown -= 1
+
+    # Roll
+    if allow_roll:
+        vel_dist = distance_between([0, 0], self.vel)
+        if self.input["Order Act Free"] and vel_dist >= self.roll_speed_cost:
+            vel_mod = self.roll_vel_mod
+            # Super roll
+            if self.input["Dash"]:
+                vel_mod = 1.4
+
+
+            vel_angle = angle_between(self.vel, [0, 0])
+            self.vel = move_with_vel_angle([0, 0], vel_dist * self.roll_vel_mod * vel_mod, vel_angle)
+            self.roll_time = self.roll_timer
+            self.status["Low friction"] = self.roll_timer - round(self.roll_timer * 0.15)
+    else:
+        self.roll_time -= 1
+
 
 def movement_player_vertical(self, entities, level):
     # Eventually I need to add alternatives to sliding
@@ -6882,7 +6960,6 @@ def movement_player_vertical(self, entities, level):
         allow_correction = True
 
     # |Jumping mechanics|-----------------------------------------------------------------------------------------------
-    # allow_jump = "Touched Bottom Wall" in self.free_var["BS COMS"] # "Touched Right Wall" "Touched Left Wall"
     allow_jump = collision_check_point([self.pos[0], self.pos[1] + self.thiccness // 2 + 10], level["map"])
 
     self.friction = self.free_var["Vertical phys"]["Air friction"]
@@ -6962,7 +7039,6 @@ def movement_player_vertical(self, entities, level):
             self.status["No damage"] += self.dash_iframes
     self.dash_cooldown -= 1
 
-    self.free_var.update({"BS COMS": []})
 
 
 def movement_entity(self):
